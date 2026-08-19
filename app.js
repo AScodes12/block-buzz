@@ -1,7 +1,6 @@
 const API_URL = 'https://review-baghdad-est-engagement.trycloudflare.com/api';
 let currentUser = localStorage.getItem('blockbuzz_user') || null;
 
-// Local Caching to make cross-page navigation instant
 let cachedPosts = null;
 let cachedExplore = null;
 let cachedContests = null;
@@ -16,7 +15,6 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
     document.getElementById(`${tabName}-section`).style.display = 'block';
 
-    // Highlight active navbar button
     event.currentTarget.classList.add('active');
 
     if (tabName === 'home') loadPosts();
@@ -51,11 +49,6 @@ async function loadExplore() {
 }
 
 async function loadContests() {
-    const container = document.getElementById('contests-container');
-    if (cachedContests) {
-        renderContests(cachedContests);
-        return;
-    }
     try {
         const res = await fetch(`${API_URL}/contests`);
         cachedContests = await res.json();
@@ -70,9 +63,36 @@ function renderContests(contests) {
             <h3><i class="fa-solid fa-award"></i> ${c.title}</h3>
             <p>${c.description}</p>
             <p style="font-size:13px; color:#16a34a; font-weight:bold;"><i class="fa-solid fa-gift"></i> Prize: ${c.prize}</p>
-            <button onclick="switchTab('home')" class="comment-submit-btn" style="margin-top:8px;">Share Project to Enter</button>
+            <small style="color:#65676b;">Advertised by @${c.poster}</small>
+            <div style="margin-top:10px;">
+                <button onclick="switchTab('home')" class="comment-submit-btn">Share Project to Enter</button>
+            </div>
         </div>
     `).join('');
+}
+
+async function submitContest() {
+    if (!currentUser) return openAuthModal();
+    const title = document.getElementById('contest-title').value.trim();
+    const description = document.getElementById('contest-desc').value.trim();
+    const prize = document.getElementById('contest-prize').value.trim();
+
+    if (!title || !description) return alert("Title and description are required!");
+
+    try {
+        const res = await fetch(`${API_URL}/contests`, {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ title, description, prize, username: currentUser })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        
+        document.getElementById('contest-title').value = '';
+        document.getElementById('contest-desc').value = '';
+        document.getElementById('contest-prize').value = '';
+        alert("Contest published successfully!");
+        loadContests();
+    } catch (err) { alert(err.message); }
 }
 
 function getAverageRating(ratings) {
@@ -87,7 +107,11 @@ function renderComments(comments, postId) {
     
     mainComments.slice(-3).forEach(c => {
         html += `<div class="comment-item">
-            <strong>${c.commenterName}:</strong> ${c.text}
+            <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                <div class="avatar-wrapper frame-${c.commenterFrame || 'none'}" style="width:24px; height:24px;"><img src="https://uploads.scratch.mit.edu/get_image/user/1_90x90.png"></div>
+                <strong style="color:${c.commenterColor || '#050505'}">${c.commenterName}:</strong>
+            </div>
+            <div>${c.text}</div>
             <button class="reply-btn" onclick="toggleReplyBox(${c.id})"><i class="fa-solid fa-reply"></i> Reply</button>
         `;
         const replies = comments.filter(r => r.parentId === c.id);
@@ -114,7 +138,7 @@ function renderFeed(containerId, posts) {
 
     posts.forEach(post => {
         const card = document.createElement('div');
-        card.className = 'project-card';
+        card.className = `project-card theme-${post.authorCardTheme || 'default'}`;
         
         const isLiked = currentUser && post.likes.includes(currentUser);
         const avgRating = getAverageRating(post.ratings);
@@ -126,6 +150,8 @@ function renderFeed(containerId, posts) {
             }).then(() => { post.views.push(currentUser); });
         }
 
+        let badgesHtml = (post.authorBadges || []).map(b => `<span class="badge-tag ${b.class}">${b.text}</span>`).join(' ');
+
         let emojisHtml = '';
         ['👍', '🔥', '😂', '🎉'].forEach(emoji => {
             const arr = post.reactions[emoji] || [];
@@ -134,11 +160,20 @@ function renderFeed(containerId, posts) {
         });
 
         card.innerHTML = `
-            <div class="card-header"><i class="fa-solid fa-circle-user"></i> ${post.posterName} shared a project</div>
+            <div class="card-header">
+                <div class="avatar-wrapper frame-${post.authorFrame || 'none'}">
+                    <img src="${post.authorPfp}">
+                </div>
+                <div>
+                    <span style="color:${post.authorColor}; font-weight:bold;">@${post.posterName}</span>
+                    <div style="margin-top:2px;">${badgesHtml}</div>
+                </div>
+            </div>
+            
             <img src="${post.thumbnail}" class="project-thumb" onclick="openProjectModal(${post.id})">
             
             <div style="display:flex; justify-content:space-between; align-items:center;">
-                <h2 class="card-title"><a href="#" onclick="openProjectModal(${post.id}); return false;">${post.title}</a></h2>
+                <h2 class="card-title"><a href="#" onclick="openProjectModal(${post.id}); return false;" style="color:inherit;">${post.title}</a></h2>
                 <div class="rating-box"><i class="fa-solid fa-star"></i> ${avgRating}</div>
             </div>
             
@@ -175,11 +210,10 @@ function renderFeed(containerId, posts) {
     });
 }
 
-// Anti-Spam Button Throttle for Liking
 const likedInProgress = new Set();
 async function toggleLike(postId) {
     if (!currentUser) return openAuthModal();
-    if (likedInProgress.has(postId)) return; // Prevent spam clicks
+    if (likedInProgress.has(postId)) return;
     
     likedInProgress.add(postId);
     const btn = document.getElementById(`like-btn-${postId}`);
@@ -190,7 +224,7 @@ async function toggleLike(postId) {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: currentUser })
         });
         if (res.ok) {
-            cachedPosts = null; // Invalidate cache
+            cachedPosts = null;
             loadPosts();
         }
     } finally {
@@ -310,6 +344,12 @@ const shopItems = [
     { type: 'banner', name: 'Gold VIP Banner', style: 'linear-gradient(135deg, #eab308 0%, #fde047 100%)', cost: 100 },
     { type: 'color', name: 'Emerald Name Color', style: '#10b981', cost: 40 },
     { type: 'color', name: 'Purple Star Name Color', style: '#8b5cf6', cost: 60 },
+    { type: 'frame', name: 'Gold Avatar Frame', style: 'gold', cost: 60 },
+    { type: 'frame', name: 'Neon Glowing Frame', style: 'neon', cost: 90 },
+    { type: 'frame', name: 'Rainbow Frame', style: 'rainbow', cost: 140 },
+    { type: 'theme', name: 'Neon Post Theme', style: 'neon', cost: 80 },
+    { type: 'theme', name: 'Gold Post Theme', style: 'gold', cost: 120 },
+    { type: 'theme', name: 'Dark Mode Post Theme', style: 'dark', cost: 150 },
     { type: 'badge', name: 'Badge: Supporter', style: '⭐ Supporter', cost: 75 },
     { type: 'badge', name: 'Badge: Pro Scratches', style: '🚀 Pro Scratches', cost: 150 }
 ];
@@ -326,11 +366,12 @@ async function loadShop() {
             const owned = user.inventory.includes(item.style) || item.cost === 0;
             let equipped = (item.type === 'banner' && user.banner === item.style) ||
                            (item.type === 'color' && user.nameColor === item.style) ||
-                           (item.type === 'badge' && user.badgeTitle === item.style);
+                           (item.type === 'badge' && user.badgeTitle === item.style) ||
+                           (item.type === 'frame' && user.pfpFrame === item.style) ||
+                           (item.type === 'theme' && user.cardTheme === item.style);
 
             html += `<div class="shop-card" style="display:flex; justify-content:space-between; align-items:center;">
                 <div>
-                    ${item.type === 'banner' ? `<div style="height:30px; width:100px; background:${item.style}; border-radius:4px; margin-bottom:5px;"></div>` : ''}
                     <b>${item.name}</b> (${item.cost} Coins)
                 </div>
                 <div>${equipped ? '<b style="color:green;">Equipped</b>' : owned ? `<button onclick="equipPerk('${item.type}', '${item.style}')" class="comment-submit-btn" style="background:gray;">Equip</button>` : `<button onclick="buyPerk('${item.type}', '${item.style}', ${item.cost})" class="comment-submit-btn">Buy</button>`}</div>
@@ -343,11 +384,12 @@ async function loadShop() {
 async function buyPerk(type, value, cost) {
     const res = await fetch(`${API_URL}/shop/buy`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: currentUser, itemType: type, itemValue: value, cost})});
     const data = await res.json();
-    if (res.ok) loadShop(); else alert(data.error);
+    if (res.ok) { cachedPosts = null; loadShop(); } else alert(data.error);
 }
 
 async function equipPerk(type, value) {
     await fetch(`${API_URL}/shop/equip`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: currentUser, itemType: type, itemValue: value})});
+    cachedPosts = null;
     loadShop();
 }
 
@@ -358,10 +400,7 @@ async function loadAccountPage() {
     try {
         const data = await (await fetch(`${API_URL}/users/${currentUser}`)).json();
         
-        // Dynamic Badges Calculation
-        let badgesHtml = `<span class="badge-tag"><i class="fa-solid fa-shield"></i> ${data.badgeTitle}</span>`;
-        if (data.referredCount > 0) badgesHtml += ` <span class="badge-tag"><i class="fa-solid fa-user-group"></i> Referrer (${data.referredCount})</span>`;
-        if (data.posts.length > 0) badgesHtml += ` <span class="badge-tag"><i class="fa-solid fa-file-pen"></i> Creator</span>`;
+        let badgesHtml = data.earnedBadges.map(b => `<span class="badge-tag ${b.class}"><i class="fa-solid fa-shield"></i> ${b.text}</span>`).join(' ');
 
         let lovedHtml = data.lovedPosts.map(p => `
             <div style="display:flex; align-items:center; gap:10px; background:#f9fafb; padding:8px; border-radius:6px; margin-bottom:6px; cursor:pointer;" onclick="openProjectModal(${p.id})">
@@ -374,9 +413,9 @@ async function loadAccountPage() {
             <div class="discord-profile-card">
                 <div class="discord-banner" style="background: ${data.banner};"></div>
                 <div class="discord-profile-body">
-                    <div class="discord-avatar-container"><img src="${data.pfp}"></div>
+                    <div class="discord-avatar-container frame-${data.pfpFrame}"><img src="${data.pfp}"></div>
                     <h2 style="color:${data.nameColor};">@${data.username}</h2>
-                    <div style="margin-bottom:10px;">${badgesHtml}</div>
+                    <div style="margin-bottom:10px; display:flex; flex-wrap:wrap; gap:5px;">${badgesHtml}</div>
                     <p><i class="fa-solid fa-coins" style="color:#eab308;"></i> <b>${data.coins}</b> Coins</p>
                     
                     <div class="ref-box">
