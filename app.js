@@ -1,4 +1,4 @@
-const API_URL = 'http://localhost:3000/api';
+const API_URL = 'https://review-baghdad-est-engagement.trycloudflare.com/api';
 let currentUser = localStorage.getItem('blockbuzz_user') || null;
 
 let cachedPosts = null;
