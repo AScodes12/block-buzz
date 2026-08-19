@@ -41,8 +41,17 @@
         <!-- Contests Section -->
         <div id="contests-section" class="tab-content" style="display:none;">
             <h2><i class="fa-solid fa-trophy" style="color:#eab308;"></i> Share Contests</h2>
-            <p style="color:#65676b; font-size:14px;">Participate in community challenges to win coin rewards!</p>
-            <div id="contests-container"></div>
+            <p style="color:#65676b; font-size:14px;">Participate in community challenges or advertise your own Scratch contest!</p>
+            
+            <div class="create-post-box" style="margin-top:15px;">
+                <h3>Advertise a Scratch Contest (15 Coins)</h3>
+                <input type="text" id="contest-title" placeholder="Contest Title..." class="comment-field" style="margin-bottom:8px;">
+                <textarea id="contest-desc" placeholder="Contest Rules & Details..." class="comment-field" style="height:50px; margin-bottom:8px;"></textarea>
+                <input type="text" id="contest-prize" placeholder="Prize (e.g., 50 Coins, Loves on projects)..." class="comment-field" style="margin-bottom:8px;">
+                <button onclick="submitContest()" class="comment-submit-btn"><i class="fa-solid fa-bullhorn"></i> Publish Contest</button>
+            </div>
+
+            <div id="contests-container" style="margin-top:20px;"></div>
         </div>
 
         <!-- Shop Section -->
