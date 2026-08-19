@@ -1,8 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
 
 :root {
-    --bg-color: #f0f2f5;
-    --card-bg: #ffffff;
+    --bg-color: #ffffff; /* Pure white background */
+    --border-color: #e4e6eb;
     --text-main: #1c1e21;
     --text-muted: #65676b;
     --accent: #2e89ff;
@@ -15,117 +15,90 @@ body {
     color: var(--text-main);
 }
 
-/* Minimalist Navbar */
+/* Navbar */
 .navbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 5%;
-    background: var(--card-bg);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    padding: 15px 5%;
+    border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
+    background: #ffffff;
     z-index: 100;
 }
+.logo h1 { margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px; }
+.logo p { margin: 0; font-size: 12px; color: var(--text-muted); }
 
-.logo h1 { margin: 0; font-size: 24px; font-weight: 800; color: var(--text-main); letter-spacing: -0.5px;}
-.logo p { margin: 2px 0 0 0; font-size: 12px; color: var(--text-muted); }
-
-.nav-icons { display: flex; gap: 25px; }
-.nav-icons i { font-size: 20px; color: var(--text-muted); cursor: pointer; transition: 0.2s; }
+.nav-icons { display: flex; gap: 20px; }
+.nav-icons i { font-size: 22px; color: var(--text-muted); cursor: pointer; transition: color 0.2s; }
 .nav-icons i:hover, .nav-icons i.active { color: var(--accent); }
 
-main { max-width: 680px; margin: 30px auto; padding: 0 15px; }
+main { max-width: 600px; margin: 40px auto; padding: 0 15px; }
 
 /* Compose Box */
 .compose-box {
-    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    margin-bottom: 30px;
-    border: 1px solid #e4e6eb;
+    margin-bottom: 40px;
+    background: #ffffff;
 }
-
-.compose-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; color: var(--text-muted); }
-.compose-header h3 { margin: 0; font-size: 16px; font-weight: 600; }
-
-.compose-body { display: flex; flex-direction: column; gap: 10px; }
+.compose-header { display: flex; align-items: center; gap: 10px; margin-bottom: 15px; font-weight: 600; color: var(--text-main); }
+.compose-body { display: flex; flex-direction: column; gap: 12px; }
+.input-row { display: flex; gap: 12px; }
 .minimal-input, .minimal-textarea {
-    width: 100%; box-sizing: border-box; padding: 12px 15px;
-    border: 1px solid #ccd0d5; border-radius: 8px; font-family: 'Inter', sans-serif;
-    font-size: 14px; background: #f7f8fa; outline: none; transition: border 0.2s;
+    width: 100%; box-sizing: border-box; padding: 12px;
+    border: 1px solid #ccd0d5; border-radius: 8px;
+    font-family: 'Inter', sans-serif; font-size: 14px; outline: none; background: #f7f8fa;
 }
-.minimal-input:focus, .minimal-textarea:focus { border-color: var(--accent); background: #fff; }
+.minimal-input:focus, .minimal-textarea:focus { border-color: var(--accent); background: #ffffff; }
 .minimal-textarea { resize: vertical; min-height: 80px; }
 
 .compose-footer { display: flex; justify-content: flex-end; margin-top: 15px; }
 .post-btn {
-    background: var(--accent); color: white; border: none; padding: 10px 20px;
-    border-radius: 6px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px;
-    transition: 0.2s;
+    background: var(--accent); color: white; border: none; padding: 10px 24px;
+    border-radius: 6px; font-weight: 600; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px;
 }
 .post-btn:hover { background: #1b74e4; }
+.post-btn:disabled { background: #ccd0d5; cursor: not-allowed; }
 
-/* Feed & Banner Project Cards */
+/* Project Card - Stacked Layout */
 .project-card {
-    background: var(--card-bg);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
-    margin-bottom: 25px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-    border: 1px solid #e4e6eb;
+    margin-bottom: 30px;
     overflow: hidden;
+    background: #ffffff;
 }
 
-/* User Caption Section */
-.post-caption-area { padding: 15px 20px; }
-.poster-info { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-weight: 600; font-size: 14px; }
-.poster-info i { color: var(--text-muted); font-size: 18px; }
-.post-text { font-size: 15px; line-height: 1.5; color: var(--text-main); margin: 0; }
+.card-header { 
+    padding: 15px; display: flex; align-items: center; gap: 10px; 
+    font-weight: 600; font-size: 14px; border-bottom: 1px solid var(--border-color); 
+}
+.card-header i { color: var(--text-muted); font-size: 18px; }
 
-/* Banner Thumbnail Section (From Reference Image) */
-.banner-container {
-    position: relative;
-    width: 100%;
-    height: 280px;
-    background: #000;
+.project-thumb {
+    width: 100%; height: auto; display: block; 
+    border-bottom: 1px solid var(--border-color);
+    aspect-ratio: 4/3; object-fit: cover;
 }
 
-.banner-thumb {
-    width: 100%; height: 100%; object-fit: cover; opacity: 0.85;
-}
+.card-body { padding: 15px; }
+.card-title { margin: 0 0 5px 0; font-size: 20px; font-weight: 800; }
+.card-title a { color: var(--text-main); text-decoration: none; }
+.card-title a:hover { text-decoration: underline; color: var(--accent); }
+.card-author { color: var(--text-muted); font-size: 13px; margin-bottom: 15px; }
+.card-caption { font-size: 15px; line-height: 1.5; margin: 0; color: var(--text-main); }
 
-.banner-overlay {
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0.1) 40%, rgba(0,0,0,0.9) 100%);
-    display: flex; flex-direction: column; justify-content: space-between;
-    padding: 20px; box-sizing: border-box; pointer-events: none;
-}
-
-.badge {
-    align-self: flex-start; background: rgba(255,255,255,0.2); backdrop-filter: blur(5px);
-    color: white; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;
-}
-
-.banner-text { color: white; }
-.banner-text h2 { margin: 0 0 5px 0; font-size: 26px; font-weight: 800; text-shadow: 0 2px 4px rgba(0,0,0,0.5); pointer-events: auto; }
-.banner-text h2 a { color: white; text-decoration: none; }
-.banner-text h2 a:hover { text-decoration: underline; }
-.banner-text .author { font-size: 14px; opacity: 0.9; }
-
-/* Interaction Bar */
 .action-bar {
     display: flex; justify-content: space-between; align-items: center;
-    padding: 12px 20px; border-top: 1px solid #e4e6eb; background: #fafbfc;
+    padding: 12px 15px; border-top: 1px solid var(--border-color); background: #fafbfc;
 }
-
-.action-stats { display: flex; gap: 20px; color: var(--text-muted); font-size: 14px; font-weight: 600; }
-.action-stats span { display: flex; align-items: center; gap: 6px; }
-
+.action-stats { display: flex; gap: 15px; color: var(--text-muted); font-size: 14px; font-weight: 600; }
 .action-btn {
-    background: none; border: none; color: var(--text-muted); font-size: 15px; font-weight: 600;
-    cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s;
+    background: none; border: none; color: var(--text-muted); font-size: 14px; font-weight: 600;
+    cursor: pointer; display: flex; align-items: center; gap: 6px; transition: 0.2s;
 }
 .action-btn:hover { color: #f02849; }
 .action-btn i.loved { color: #f02849; }
