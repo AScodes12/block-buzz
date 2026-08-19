@@ -3,77 +3,499 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockBuzz - Scratch Social Hub</title>
-    <link rel="stylesheet" href="style.css">
+    <title>BlockBuzz - Share & Explore Scratch Projects</title>
+    <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        /* --- Root Variables & Reset --- */
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --border-color: #e2e8f0;
+            --text-primary: #0f172a;
+            --text-secondary: #64748b;
+            --accent-color: #2563eb;
+            --accent-hover: #1d4ed8;
+            --radius-md: 10px;
+            --radius-lg: 14px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.5;
+            padding-bottom: 50px;
+        }
+
+        a {
+            color: var(--accent-color);
+            text-decoration: none;
+        }
+
+        /* --- Header & Navigation --- */
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-container {
+            max-width: 900px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 16px;
+        }
+
+        .logo {
+            font-weight: 800;
+            font-size: 1.25rem;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .logo i {
+            color: var(--accent-color);
+        }
+
+        nav {
+            display: flex;
+            gap: 4px;
+        }
+
+        .nav-link {
+            padding: 8px 14px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--text-secondary);
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+        }
+
+        .nav-link:hover {
+            background-color: #f1f5f9;
+            color: var(--text-primary);
+        }
+
+        .nav-link.active {
+            color: var(--accent-color);
+            background-color: #eff6ff;
+        }
+
+        #auth-container {
+            display: flex;
+            align-items: center;
+        }
+
+        /* --- Main Layout --- */
+        main {
+            max-width: 680px;
+            margin: 20px auto;
+            padding: 0 16px;
+        }
+
+        .tab-content {
+            display: none; /* Controlled by switchTab() in app.js */
+        }
+
+        /* --- Creation Cards --- */
+        .create-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .create-card h3 {
+            font-size: 15px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-primary);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .comment-field, input[type="text"], input[type="password"], textarea, select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            font-size: 14px;
+            background: #fff;
+            color: var(--text-primary);
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .comment-field:focus, input:focus, textarea:focus {
+            border-color: var(--accent-color);
+        }
+
+        .comment-submit-btn, .post-btn {
+            background-color: var(--accent-color);
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: background 0.15s;
+        }
+
+        .comment-submit-btn:hover, .post-btn:hover {
+            background-color: var(--accent-hover);
+        }
+
+        /* --- Project Feed & Cards --- */
+        .project-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            margin-bottom: 20px;
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .avatar-wrapper {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            overflow: hidden;
+            background: #e2e8f0;
+            flex-shrink: 0;
+        }
+
+        .avatar-wrapper img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .project-thumb {
+            width: 100%;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+            cursor: pointer;
+            background: #000;
+            margin-bottom: 12px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 700;
+        }
+
+        .rating-box {
+            font-size: 13px;
+            font-weight: 700;
+            background: #fef9c3;
+            color: #854d0e;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .card-caption {
+            font-size: 14px;
+            color: var(--text-primary);
+            margin: 8px 0 12px 0;
+        }
+
+        .action-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-color);
+            margin-bottom: 12px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .emoji-bar {
+            display: flex;
+            gap: 4px;
+        }
+
+        .emoji-btn {
+            background: #f1f5f9;
+            border: 1px solid transparent;
+            padding: 4px 8px;
+            border-radius: 16px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .emoji-btn.active {
+            background: #e0e7ff;
+            border-color: #6366f1;
+        }
+
+        .action-btn {
+            background: #f1f5f9;
+            border: none;
+            padding: 6px 12px;
+            border-radius: var(--radius-md);
+            font-weight: 600;
+            font-size: 13px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .action-btn.loved {
+            background: #ffe4e6;
+            color: #e11d48;
+        }
+
+        /* --- Comments & Replies --- */
+        .comments-section {
+            background: #f8fafc;
+            border-radius: var(--radius-md);
+            padding: 12px;
+            font-size: 13px;
+        }
+
+        .comment-item {
+            padding: 8px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .comment-item:last-child {
+            border-bottom: none;
+        }
+
+        .reply-item {
+            margin-left: 20px;
+            margin-top: 4px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .reply-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 11px;
+            cursor: pointer;
+            padding: 2px 0;
+            margin-top: 4px;
+        }
+
+        .reply-input-row {
+            display: none;
+            gap: 6px;
+            margin-top: 6px;
+        }
+
+        /* --- Badges --- */
+        .badge-tag {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            text-transform: uppercase;
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        /* --- Modals --- */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: #fff;
+            border-radius: var(--radius-lg);
+            width: 500px;
+            max-width: 92%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 20px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            text-align: center;
+            margin-bottom: 16px;
+        }
+
+        .stat-box {
+            background: #f8fafc;
+            border: 1px solid var(--border-color);
+            padding: 8px;
+            border-radius: var(--radius-md);
+            font-size: 12px;
+        }
+
+        /* --- Contest Cards --- */
+        .contest-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+    </style>
 </head>
 <body>
-    <header class="navbar">
-        <div class="nav-brand"><i class="fa-solid fa-bolt" style="color:#0095f6;"></i> BlockBuzz</div>
-        <nav class="nav-links">
-            <button class="nav-link active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
-            <button class="nav-link" onclick="switchTab('explore')"><i class="fa-solid fa-compass"></i> Explore</button>
-            <button class="nav-link" onclick="switchTab('contests')"><i class="fa-solid fa-trophy"></i> Contests</button>
-            <button class="nav-link" onclick="switchTab('shop')"><i class="fa-solid fa-store"></i> Shop</button>
-            <button class="nav-link" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Account</button>
-        </nav>
-        <div id="auth-container"></div>
+
+    <!-- Header Navbar -->
+    <header>
+        <div class="header-container">
+            <div class="logo" onclick="switchTab('home')">
+                <i class="fa-solid fa-cubes-stacked"></i> BlockBuzz
+            </div>
+            <nav>
+                <button class="nav-link active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
+                <button class="nav-link" onclick="switchTab('explore')"><i class="fa-solid fa-compass"></i> Explore</button>
+                <button class="nav-link" onclick="switchTab('contests')"><i class="fa-solid fa-trophy"></i> Contests</button>
+                <button class="nav-link" onclick="switchTab('shop')"><i class="fa-solid fa-store"></i> Shop</button>
+                <button class="nav-link" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Account</button>
+            </nav>
+            <div id="auth-container">
+                <!-- Dynamically populated by updateAuthUI() -->
+            </div>
+        </div>
     </header>
 
-    <main class="main-container">
-        <!-- Home Feed Section -->
-        <div id="feed-section" class="tab-content">
-            <div class="create-post-box">
-                <h3>Share Your Own Project</h3>
-                <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID..." class="comment-field" style="margin-bottom:8px;">
-                <textarea id="post-caption" placeholder="Tell us about your project!" class="comment-field" style="height:60px; margin-bottom:8px;"></textarea>
-                <button onclick="submitPost()" class="comment-submit-btn post-btn"><i class="fa-solid fa-paper-plane"></i> Post</button>
-            </div>
-            <div id="feed"></div>
-        </div>
+    <!-- Main Content Container -->
+    <main>
 
-        <!-- Explore Section -->
-        <div id="explore-section" class="tab-content" style="display:none;">
-            <h2>Top Rated Projects</h2>
-            <div id="explore-feed"></div>
-        </div>
-
-        <!-- Contests Section -->
-        <div id="contests-section" class="tab-content" style="display:none;">
-            <h2><i class="fa-solid fa-trophy" style="color:#eab308;"></i> Share Contests</h2>
-            <p style="color:#65676b; font-size:14px;">Participate in community challenges or advertise your own Scratch contest!</p>
-            
-            <div class="create-post-box" style="margin-top:15px;">
-                <h3>Advertise a Scratch Contest (1 Coin)</h3>
-                <input type="text" id="contest-title" placeholder="Contest Title..." class="comment-field" style="margin-bottom:8px;">
-                <textarea id="contest-desc" placeholder="Contest Rules & Details..." class="comment-field" style="height:50px; margin-bottom:8px;"></textarea>
-                <input type="text" id="contest-prize" placeholder="Prize (e.g., Followers, Loves on projects)..." class="comment-field" style="margin-bottom:8px;">
-                <button onclick="submitContest()" class="comment-submit-btn"><i class="fa-solid fa-bullhorn"></i> Publish Contest</button>
+        <!-- 1. HOME SECTION -->
+        <section id="home-section" class="tab-content" style="display: block;">
+            <!-- Post Submission Box -->
+            <div class="create-card">
+                <h3><i class="fa-solid fa-paper-plane" style="color:var(--accent-color);"></i> Share a Scratch Project</h3>
+                <div class="input-group">
+                    <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID (e.g. 104) ...">
+                    <textarea id="post-caption" rows="2" placeholder="Write a short caption or announcement..." class="comment-field"></textarea>
+                    <div style="text-align: right;">
+                        <button onclick="submitPost()" class="post-btn"><i class="fa-solid fa-paper-plane"></i> Post</button>
+                    </div>
+                </div>
             </div>
 
-            <div id="contests-container" style="margin-top:20px;"></div>
-        </div>
+            <!-- Posts Feed Container -->
+            <div id="feed">
+                <!-- Posts populated dynamically by loadPosts() -->
+            </div>
+        </section>
 
-        <!-- Shop Section -->
-        <div id="shop-section" class="tab-content" style="display:none;">
-            <h2><i class="fa-solid fa-store" style="color:var(--primary-color);"></i> Perk & Customization Shop</h2>
-            <div id="shop-items-container"></div>
-        </div>
+        <!-- 2. EXPLORE SECTION -->
+        <section id="explore-section" class="tab-content">
+            <div style="margin-bottom: 16px;">
+                <h2>Explore Projects</h2>
+                <p style="color: var(--text-secondary); font-size: 14px;">Discover trending and top-rated creations from the community.</p>
+            </div>
+            <div id="explore-feed">
+                <!-- Explored items populated dynamically by loadExplore() -->
+            </div>
+        </section>
 
-        <!-- Account Section -->
-        <div id="account-section" class="tab-content" style="display:none;">
-            <div id="account-profile-content"></div>
-        </div>
+        <!-- 3. CONTESTS SECTION -->
+        <section id="contests-section" class="tab-content">
+            <div class="create-card">
+                <h3><i class="fa-solid fa-award" style="color:#eab308;"></i> Host a Community Contest</h3>
+                <div class="input-group">
+                    <input type="text" id="contest-title" placeholder="Contest Title...">
+                    <textarea id="contest-desc" rows="2" placeholder="Contest Rules & Details..." class="comment-field"></textarea>
+                    <input type="text" id="contest-prize" placeholder="Prize (e.g. 50 Coins or Shoutout)">
+                    <div style="text-align: right;">
+                        <button onclick="submitContest()" class="comment-submit-btn">Publish Contest</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="contests-container">
+                <!-- Contests loaded dynamically by loadContests() -->
+            </div>
+        </section>
+
+        <!-- 4. SHOP SECTION -->
+        <section id="shop-section" class="tab-content">
+            <div style="margin-bottom: 16px;">
+                <h2>Perk Shop</h2>
+                <p style="color: var(--text-secondary); font-size: 14px;">Unlock custom banners, username colors, and avatar frames using earned coins.</p>
+            </div>
+            <div id="shop-items-container">
+                <!-- Shop items loaded dynamically by loadShop() -->
+            </div>
+        </section>
+
+        <!-- 5. ACCOUNT SECTION -->
+        <section id="account-section" class="tab-content">
+            <div id="account-profile-content">
+                <!-- Profile data loaded dynamically by loadAccountPage() -->
+            </div>
+        </section>
+
     </main>
 
-    <!-- Project Details Modal -->
-    <div id="project-detail-modal" class="modal-backdrop">
-        <div class="modal-content" style="width: 550px; max-height: 90vh; overflow-y: auto;">
-            <div id="detail-modal-body"></div>
-            <button onclick="closeProjectModal()" class="action-btn" style="width:100%; justify-content:center; margin-top:15px; background:#e4e6eb; padding:10px; border-radius:6px;">Close Window</button>
+    <!-- PROJECT DETAIL MODAL -->
+    <div id="project-detail-modal" class="modal-backdrop" style="display: none;">
+        <div class="modal-content">
+            <div style="text-align: right; margin-bottom: 10px;">
+                <button onclick="closeProjectModal()" style="background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-secondary);"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div id="detail-modal-body">
+                <!-- Loaded dynamically by openProjectModal() -->
+            </div>
         </div>
     </div>
 
+    <!-- Application Logic Script -->
     <script src="app.js"></script>
 </body>
 </html>
