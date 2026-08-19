@@ -13,6 +13,7 @@
         <nav class="nav-links">
             <button class="nav-link active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
             <button class="nav-link" onclick="switchTab('explore')"><i class="fa-solid fa-compass"></i> Explore</button>
+            <button class="nav-link" onclick="switchTab('contests')"><i class="fa-solid fa-trophy"></i> Contests</button>
             <button class="nav-link" onclick="switchTab('shop')"><i class="fa-solid fa-store"></i> Shop</button>
             <button class="nav-link" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Account</button>
         </nav>
@@ -37,9 +38,16 @@
             <div id="explore-feed"></div>
         </div>
 
+        <!-- Contests Section -->
+        <div id="contests-section" class="tab-content" style="display:none;">
+            <h2><i class="fa-solid fa-trophy" style="color:#eab308;"></i> Share Contests</h2>
+            <p style="color:#65676b; font-size:14px;">Participate in community challenges to win coin rewards!</p>
+            <div id="contests-container"></div>
+        </div>
+
         <!-- Shop Section -->
         <div id="shop-section" class="tab-content" style="display:none;">
-            <h2><i class="fa-solid fa-store" style="color:var(--primary-color);"></i> Banner Shop</h2>
+            <h2><i class="fa-solid fa-store" style="color:var(--primary-color);"></i> Perk & Customization Shop</h2>
             <div id="shop-items-container"></div>
         </div>
 
@@ -49,7 +57,7 @@
         </div>
     </main>
 
-    <!-- Project Details Modal (Formatted) -->
+    <!-- Project Details Modal -->
     <div id="project-detail-modal" class="modal-backdrop">
         <div class="modal-content" style="width: 550px; max-height: 90vh; overflow-y: auto;">
             <div id="detail-modal-body"></div>
