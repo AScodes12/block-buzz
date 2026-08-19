@@ -1,4 +1,4 @@
-const API_URL = 'https://speaking-zealand-nearby-bulletin.trycloudflare.com/api';
+const API_URL = 'https://gabriel-telescope-closer-defeat.trycloudflare.com/api';
 let currentUser = localStorage.getItem('blockbuzz_user') || null;
 
 let cachedPosts = null;
