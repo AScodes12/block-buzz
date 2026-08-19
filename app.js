@@ -1,4 +1,4 @@
-const API_URL = 'https://review-baghdad-est-engagement.trycloudflare.com'; 
+const API_URL = 'https://review-baghdad-est-engagement.trycloudflare.com/api'; 
 
 async function loadPosts() {
     try {
