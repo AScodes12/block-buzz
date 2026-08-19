@@ -3,35 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BLOCK BUZZ</title>
+    <title>BlockBuzz</title>
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <header class="navbar">
         <div class="logo">
-            <h1>BLOCK BUZZ</h1>
-            <p>CREATE. SHARE. PLAY. REMIX.</p>
+            <h1>BlockBuzz</h1>
+            <p>Curate your Scratch universe.</p>
         </div>
         <div class="nav-icons">
-            <i class="fas fa-bell"></i>
-            <i class="fas fa-user-circle"></i>
-            <i class="fas fa-search"></i>
+            <i class="fa-solid fa-house active"></i>
+            <i class="fa-solid fa-compass"></i>
+            <i class="fa-solid fa-bell"></i>
+            <i class="fa-solid fa-user"></i>
         </div>
     </header>
 
     <main>
-        <section class="create-post-section">
-            <h3>Share a Real Scratch Project</h3>
-            <p class="sub-hint">Paste a Scratch Project URL or ID below to automatically pull its live thumbnail and stats!</p>
-            <div class="input-group">
-                <input type="text" id="scratch-input" placeholder="e.g., https://scratch.mit.edu/projects/769894732">
-                <button onclick="submitPost()">Load & Share</button>
+        <section class="compose-box">
+            <div class="compose-header">
+                <i class="fa-solid fa-pen-to-square"></i>
+                <h3>Share a Project</h3>
+            </div>
+            <div class="compose-body">
+                <input type="text" id="post-username" placeholder="Your Display Name" class="minimal-input">
+                <input type="text" id="scratch-input" placeholder="Scratch Project URL or ID" class="minimal-input">
+                <textarea id="post-caption" placeholder="Why are you sharing this? Add a caption..." class="minimal-textarea"></textarea>
+            </div>
+            <div class="compose-footer">
+                <button onclick="submitPost()" class="post-btn"><i class="fa-solid fa-paper-plane"></i> Post to Feed</button>
             </div>
         </section>
         
         <section id="feed" class="feed">
-            <!-- Project feed items will load here -->
+            <!-- Feed loads here -->
         </section>
     </main>
 
