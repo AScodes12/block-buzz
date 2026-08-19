@@ -1,4 +1,4 @@
-const API_URL = 'https://penny-villages-resolutions-kitchen.trycloudflare.com /api';
+const API_URL = 'https://penny-villages-resolutions-kitchen.trycloudflare.com/api';
 let currentUser = localStorage.getItem('blockbuzz_user') || null;
 
 let cachedPosts = null;
