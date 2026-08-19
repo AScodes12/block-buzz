@@ -14,12 +14,15 @@
             <button class="nav-link active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
             <button class="nav-link" onclick="switchTab('explore')"><i class="fa-solid fa-compass"></i> Explore</button>
             <button class="nav-link" onclick="switchTab('notifications')"><i class="fa-solid fa-bell"></i> Notifications</button>
+            <button class="nav-link" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Account</button>
         </nav>
         <div id="auth-container"></div>
     </header>
 
     <main class="main-container">
+        <!-- Home Feed Section -->
         <div id="feed-section" class="tab-content">
+            <div id="featured-container"></div>
             <div class="create-post-box">
                 <h3>Share a Scratch Project</h3>
                 <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID..." class="comment-field" style="margin-bottom:8px;">
@@ -29,16 +32,31 @@
             <div id="feed"></div>
         </div>
 
+        <!-- Explore Section -->
         <div id="explore-section" class="tab-content" style="display:none;">
             <h2>Explore Top Projects</h2>
             <div id="explore-feed"></div>
         </div>
 
+        <!-- Notifications Section -->
         <div id="notifications-section" class="tab-content" style="display:none;">
             <h2>Your Notifications</h2>
             <div id="notifications-container"></div>
         </div>
+
+        <!-- Account Profile Section -->
+        <div id="account-section" class="tab-content" style="display:none;">
+            <div id="account-profile-content"></div>
+        </div>
     </main>
+
+    <!-- Project Details Modal -->
+    <div id="project-detail-modal" class="modal-backdrop">
+        <div class="modal-content" style="width: 500px; max-height: 90vh; overflow-y: auto;">
+            <div id="detail-modal-body"></div>
+            <button onclick="closeProjectModal()" class="action-btn" style="width:100%; justify-content:center; margin-top:15px; background:#e4e6eb; padding:8px; border-radius:6px;">Close</button>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
