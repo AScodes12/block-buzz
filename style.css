@@ -14,7 +14,6 @@ body {
     padding-top: 70px;
 }
 
-/* Navbar */
 .navbar {
     position: fixed;
     top: 0;
@@ -61,14 +60,13 @@ body {
     color: var(--primary-color);
 }
 
-/* Main Container & Layout */
 .main-container {
     max-width: 600px;
     margin: 20px auto;
     padding: 0 15px;
 }
 
-.create-post-box, .project-card {
+.create-post-box, .project-card, .featured-card {
     background: var(--card-bg);
     border: 1px solid var(--border-color);
     border-radius: 12px;
@@ -77,7 +75,11 @@ body {
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
-/* Form Elements */
+.featured-card {
+    background: linear-gradient(135deg, #e7f3ff 0%, #f0f2f5 100%);
+    border: 2px solid var(--primary-color);
+}
+
 .comment-field {
     width: 100%;
     padding: 10px;
@@ -103,7 +105,6 @@ body {
     opacity: 0.9;
 }
 
-/* Project Cards */
 .card-header {
     display: flex;
     align-items: center;
@@ -117,6 +118,12 @@ body {
     width: 100%;
     border-radius: 8px;
     margin-bottom: 10px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.project-thumb:hover {
+    opacity: 0.95;
 }
 
 .card-title {
@@ -144,7 +151,6 @@ body {
     margin-bottom: 12px;
 }
 
-/* Actions & Stats Bar */
 .action-bar {
     display: flex;
     justify-content: space-between;
@@ -174,11 +180,10 @@ body {
     font-size: 14px;
 }
 
-.action-btn:hover {
+.action-btn.loved {
     color: #f02849;
 }
 
-/* Comments Section */
 .comments-section {
     font-size: 13px;
 }
@@ -202,7 +207,6 @@ body {
     margin-top: 8px;
 }
 
-/* Modals */
 .modal-backdrop {
     position: fixed;
     top: 0;
@@ -224,7 +228,6 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Notifications Page */
 .notification-item {
     background: #f9fafb;
     padding: 12px;
