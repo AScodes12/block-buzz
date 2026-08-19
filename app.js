@@ -1,4 +1,4 @@
-const API_URL = 'https://pitch-delivers-avoiding-bloom.trycloudflare.com/api'; 
+const API_URL = 'https://fluid-mail-municipal-harbor.trycloudflare.com/api'; 
 
 async function loadPosts() {
     try {
