@@ -1,9 +1,10 @@
-const API_URL = 'https://review-baghdad-est-engagement.trycloudflare.com/api';
+const API_URL = 'http://localhost:3000/api';
 let currentUser = localStorage.getItem('blockbuzz_user') || null;
 
 let cachedPosts = null;
 let cachedExplore = null;
 let cachedContests = null;
+let isSubmittingPost = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     updateAuthUI();
@@ -15,7 +16,9 @@ function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
     document.getElementById(`${tabName}-section`).style.display = 'block';
 
-    event.currentTarget.classList.add('active');
+    if (event && event.currentTarget) {
+        event.currentTarget.classList.add('active');
+    }
 
     if (tabName === 'home') loadPosts();
     else if (tabName === 'explore') loadExplore();
@@ -58,6 +61,7 @@ async function loadContests() {
 
 function renderContests(contests) {
     const container = document.getElementById('contests-container');
+    if (!container) return;
     container.innerHTML = contests.map(c => `
         <div class="contest-card">
             <h3><i class="fa-solid fa-award"></i> ${c.title}</h3>
@@ -128,12 +132,14 @@ function renderComments(comments, postId) {
 }
 
 function toggleReplyBox(commentId) {
+    if (!currentUser) return openAuthModal();
     const box = document.getElementById(`reply-box-${commentId}`);
-    box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
+    if (box) box.style.display = box.style.display === 'flex' ? 'none' : 'flex';
 }
 
 function renderFeed(containerId, posts) {
     const feed = document.getElementById(containerId);
+    if (!feed) return;
     feed.innerHTML = posts.length === 0 ? '<p style="text-align:center;">No projects found.</p>' : '';
 
     posts.forEach(post => {
@@ -236,7 +242,8 @@ async function toggleLike(postId) {
 async function openProjectModal(postId) {
     const modal = document.getElementById('project-detail-modal');
     const modalBody = document.getElementById('detail-modal-body');
-    modalBody.innerHTML = '<p style="text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Loading formatted data...</p>';
+    if (!modal || !modalBody) return;
+    modalBody.innerHTML = '<p style="text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Loading data...</p>';
     modal.style.display = 'flex';
 
     try {
@@ -280,7 +287,10 @@ async function openProjectModal(postId) {
     } catch (err) { modalBody.innerHTML = '<p style="color:red; text-align:center;">Failed to load project details.</p>'; }
 }
 
-function closeProjectModal() { document.getElementById('project-detail-modal').style.display = 'none'; }
+function closeProjectModal() { 
+    const modal = document.getElementById('project-detail-modal');
+    if (modal) modal.style.display = 'none'; 
+}
 
 async function reactPost(postId, emoji) {
     if (!currentUser) return openAuthModal();
@@ -293,7 +303,9 @@ async function reactPost(postId, emoji) {
 
 async function submitRating(postId) {
     if (!currentUser) return openAuthModal();
-    const score = parseInt(document.getElementById(`rate-${postId}`).value);
+    const select = document.getElementById(`rate-${postId}`);
+    if (!select) return;
+    const score = parseInt(select.value);
     if (!score) return;
     await fetch(`${API_URL}/posts/${postId}/rate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: currentUser, score })
@@ -304,9 +316,22 @@ async function submitRating(postId) {
 
 async function submitPost() {
     if (!currentUser) return openAuthModal();
-    const scratchInput = document.getElementById('scratch-input').value;
-    const captionInput = document.getElementById('post-caption').value;
-    if (!scratchInput) return alert("URL/ID required!");
+    if (isSubmittingPost) return; 
+
+    const scratchInputElem = document.getElementById('scratch-input');
+    const captionInputElem = document.getElementById('post-caption');
+    if (!scratchInputElem) return;
+
+    const scratchInput = scratchInputElem.value.trim();
+    const captionInput = captionInputElem ? captionInputElem.value.trim() : '';
+    if (!scratchInput) return alert("URL or Scratch Project ID required!");
+
+    isSubmittingPost = true;
+    const postBtn = document.querySelector('.post-btn');
+    if (postBtn) {
+        postBtn.style.opacity = '0.5';
+        postBtn.innerText = 'Posting...';
+    }
 
     try {
         const res = await fetch(`${API_URL}/posts`, {
@@ -315,17 +340,28 @@ async function submitPost() {
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
-        document.getElementById('scratch-input').value = '';
-        document.getElementById('post-caption').value = '';
+        
+        scratchInputElem.value = '';
+        if (captionInputElem) captionInputElem.value = '';
         cachedPosts = null;
         loadPosts();
-    } catch (err) { alert(err.message); }
+    } catch (err) { 
+        alert(err.message); 
+    } finally {
+        isSubmittingPost = false;
+        if (postBtn) {
+            postBtn.style.opacity = '1';
+            postBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Post';
+        }
+    }
 }
 
 async function submitComment(postId, parentId = null) {
     if (!currentUser) return openAuthModal();
     const inputId = parentId ? `reply-text-${parentId}` : `comment-text-${postId}`;
-    const text = document.getElementById(inputId).value.trim();
+    const inputElem = document.getElementById(inputId);
+    if (!inputElem) return;
+    const text = inputElem.value.trim();
     if (!text) return;
 
     await fetch(`${API_URL}/posts/${postId}/comments`, {
@@ -339,55 +375,61 @@ async function submitComment(postId, parentId = null) {
 async function submitReply(postId, parentId) { submitComment(postId, parentId); }
 
 const shopItems = [
-    { type: 'banner', name: 'Ocean Breeze Banner', style: 'linear-gradient(135deg, #0095f6 0%, #60a5fa 100%)', cost: 0 },
-    { type: 'banner', name: 'Neon Sunset Banner', style: 'linear-gradient(135deg, #f43f5e 0%, #fb923c 100%)', cost: 50 },
-    { type: 'banner', name: 'Gold VIP Banner', style: 'linear-gradient(135deg, #eab308 0%, #fde047 100%)', cost: 100 },
-    { type: 'color', name: 'Emerald Name Color', style: '#10b981', cost: 40 },
-    { type: 'color', name: 'Purple Star Name Color', style: '#8b5cf6', cost: 60 },
-    { type: 'frame', name: 'Gold Avatar Frame', style: 'gold', cost: 60 },
-    { type: 'frame', name: 'Neon Glowing Frame', style: 'neon', cost: 90 },
-    { type: 'frame', name: 'Rainbow Frame', style: 'rainbow', cost: 140 },
-    { type: 'theme', name: 'Neon Post Theme', style: 'neon', cost: 80 },
-    { type: 'theme', name: 'Gold Post Theme', style: 'gold', cost: 120 },
-    { type: 'theme', name: 'Dark Mode Post Theme', style: 'dark', cost: 150 },
-    { type: 'badge', name: 'Badge: Supporter', style: '⭐ Supporter', cost: 75 },
-    { type: 'badge', name: 'Badge: Pro Scratches', style: '🚀 Pro Scratches', cost: 150 }
+    { type: 'banner', name: 'Ocean Breeze Banner (Default)', description: 'Classic blue gradient background profile banner', style: 'linear-gradient(135deg, #0095f6 0%, #60a5fa 100%)', cost: 0 },
+    { type: 'banner', name: 'Neon Sunset Banner', description: 'Vibrant pink and orange gradient profile banner', style: 'linear-gradient(135deg, #f43f5e 0%, #fb923c 100%)', cost: 50 },
+    { type: 'banner', name: 'Gold VIP Banner', description: 'Luxurious golden gradient profile banner', style: 'linear-gradient(135deg, #eab308 0%, #fde047 100%)', cost: 100 },
+    { type: 'color', name: 'Emerald Name Color', description: 'Green colored username visible across all posts', style: '#10b981', cost: 40 },
+    { type: 'color', name: 'Purple Star Name Color', description: 'Purple colored username visible across all posts', style: '#8b5cf6', cost: 60 },
+    { type: 'frame', name: 'Gold Avatar Frame', description: 'Golden ring surrounding your profile picture', style: 'gold', cost: 60 },
+    { type: 'frame', name: 'Neon Glowing Frame', description: 'Glowing pink ring surrounding your profile picture', style: 'neon', cost: 90 },
+    { type: 'frame', name: 'Rainbow Frame', description: 'Animated multicolored ring surrounding your profile picture', style: 'rainbow', cost: 140 },
+    { type: 'theme', name: 'Neon Post Theme', description: 'Unique neon styling applied directly to your shared post cards', style: 'neon', cost: 80 },
+    { type: 'theme', name: 'Gold Post Theme', description: 'Gold accented styling applied directly to your shared post cards', style: 'gold', cost: 120 },
+    { type: 'theme', name: 'Dark Mode Post Theme', description: 'Sleek dark theme applied directly to your shared post cards', style: 'dark', cost: 150 }
 ];
 
 async function loadShop() {
     const container = document.getElementById('shop-items-container');
+    if (!container) return;
     if (!currentUser) return container.innerHTML = '<p style="text-align:center;">Log in to view shop.</p>';
     
     try {
         const user = await (await fetch(`${API_URL}/users/${currentUser}`)).json();
-        let html = `<div style="margin-bottom:15px; font-weight:bold;"><i class="fa-solid fa-coins" style="color:#eab308;"></i> Balance: ${user.coins} Coins</div>`;
+        let html = `<div style="margin-bottom:15px; font-weight:bold; font-size:16px;"><i class="fa-solid fa-coins" style="color:#eab308;"></i> Balance: ${user.coins} Coins</div>`;
+        html += `<p style="font-size:13px; color:#65676b; margin-bottom:15px;">Note: Badges are 100% free and earned automatically on your profile when you refer friends or create projects!</p>`;
         
         shopItems.forEach(item => {
             const owned = user.inventory.includes(item.style) || item.cost === 0;
             let equipped = (item.type === 'banner' && user.banner === item.style) ||
                            (item.type === 'color' && user.nameColor === item.style) ||
-                           (item.type === 'badge' && user.badgeTitle === item.style) ||
                            (item.type === 'frame' && user.pfpFrame === item.style) ||
                            (item.type === 'theme' && user.cardTheme === item.style);
 
-            html += `<div class="shop-card" style="display:flex; justify-content:space-between; align-items:center;">
-                <div>
-                    <b>${item.name}</b> (${item.cost} Coins)
-                </div>
-                <div>${equipped ? '<b style="color:green;">Equipped</b>' : owned ? `<button onclick="equipPerk('${item.type}', '${item.style}')" class="comment-submit-btn" style="background:gray;">Equip</button>` : `<button onclick="buyPerk('${item.type}', '${item.style}', ${item.cost})" class="comment-submit-btn">Buy</button>`}</div>
-            </div>`;
+            html += `
+                <div class="shop-card" style="display:flex; justify-content:space-between; align-items:center; background:#fff; padding:12px; border-radius:8px; margin-bottom:10px; border:1px solid #ddd;">
+                    <div>
+                        <b style="font-size:15px;">${item.name}</b><br>
+                        <small style="color:#65676b;">${item.description}</small><br>
+                        <span style="font-size:12px; font-weight:bold; color:#eab308;"><i class="fa-solid fa-coins"></i> ${item.cost} Coins</span>
+                    </div>
+                    <div>
+                        ${equipped ? '<b style="color:green; font-size:14px;">Equipped</b>' : owned ? `<button onclick="equipPerk('${item.type}', '${item.style}')" class="comment-submit-btn" style="background:gray;">Equip</button>` : `<button onclick="buyPerk('${item.type}', '${item.style}', ${item.cost})" class="comment-submit-btn">Buy</button>`}
+                    </div>
+                </div>`;
         });
         container.innerHTML = html;
     } catch(e) {}
 }
 
 async function buyPerk(type, value, cost) {
+    if (!currentUser) return openAuthModal();
     const res = await fetch(`${API_URL}/shop/buy`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: currentUser, itemType: type, itemValue: value, cost})});
     const data = await res.json();
     if (res.ok) { cachedPosts = null; loadShop(); } else alert(data.error);
 }
 
 async function equipPerk(type, value) {
+    if (!currentUser) return openAuthModal();
     await fetch(`${API_URL}/shop/equip`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username: currentUser, itemType: type, itemValue: value})});
     cachedPosts = null;
     loadShop();
@@ -395,14 +437,16 @@ async function equipPerk(type, value) {
 
 async function loadAccountPage() {
     const container = document.getElementById('account-profile-content');
+    if (!container) return;
     if (!currentUser) return container.innerHTML = '<p style="text-align:center;">You are not logged in.</p>';
 
     try {
-        const data = await (await fetch(`${API_URL}/users/${currentUser}`)).json();
+        const res = await fetch(`${API_URL}/users/${currentUser}`);
+        const data = await res.json();
         
-        let badgesHtml = data.earnedBadges.map(b => `<span class="badge-tag ${b.class}"><i class="fa-solid fa-shield"></i> ${b.text}</span>`).join(' ');
+        let badgesHtml = (data.earnedBadges || []).map(b => `<span class="badge-tag ${b.class}"><i class="fa-solid fa-shield"></i> ${b.text}</span>`).join(' ') || '<span style="font-size:12px; color:#65676b;">No badges unlocked yet. Refer friends or post 3+ projects to earn free badges!</span>';
 
-        let lovedHtml = data.lovedPosts.map(p => `
+        let lovedHtml = (data.lovedPosts || []).map(p => `
             <div style="display:flex; align-items:center; gap:10px; background:#f9fafb; padding:8px; border-radius:6px; margin-bottom:6px; cursor:pointer;" onclick="openProjectModal(${p.id})">
                 <img src="${p.thumbnail}" style="width:50px; height:40px; object-fit:cover; border-radius:4px;">
                 <div><b style="font-size:13px;">${p.title}</b><br><small style="color:#65676b;">By ${p.author}</small></div>
@@ -411,26 +455,28 @@ async function loadAccountPage() {
 
         container.innerHTML = `
             <div class="discord-profile-card">
-                <div class="discord-banner" style="background: ${data.banner};"></div>
-                <div class="discord-profile-body">
-                    <div class="discord-avatar-container frame-${data.pfpFrame}"><img src="${data.pfp}"></div>
-                    <h2 style="color:${data.nameColor};">@${data.username}</h2>
+                <div class="discord-banner" style="background: ${data.banner}; height:90px; border-radius:8px 8px 0 0;"></div>
+                <div class="discord-profile-body" style="padding:15px;">
+                    <div class="discord-avatar-container frame-${data.pfpFrame}" style="width:60px; height:60px; border-radius:50%; overflow:hidden; margin-top:-35px; border:3px solid white; background:#fff;"><img src="${data.pfp}" style="width:100%; height:100%; object-fit:cover;"></div>
+                    <h2 style="color:${data.nameColor}; margin:5px 0;">@${data.username}</h2>
                     <div style="margin-bottom:10px; display:flex; flex-wrap:wrap; gap:5px;">${badgesHtml}</div>
                     <p><i class="fa-solid fa-coins" style="color:#eab308;"></i> <b>${data.coins}</b> Coins</p>
                     
-                    <div class="ref-box">
-                        <b style="color:#15803d; font-size:15px;">Your Referral Code: ${data.referralCode}</b>
-                        <p style="font-size:12px; margin:5px 0 0 0; color:#166534;">Share with friends when they sign up to earn 10 coins each!</p>
+                    <div class="ref-box" style="background:#f0fdf4; border:1px solid #22c55e; padding:10px; border-radius:6px; margin-bottom:15px;">
+                        <b style="color:#15803d; font-size:14px;">Your Referral Code: ${data.referralCode}</b>
+                        <p style="font-size:12px; margin:5px 0 0 0; color:#166534;">Share this code with friends! When they sign up using your code, you both earn bonus coins.</p>
                     </div>
 
-                    <h3 style="margin-top:20px; font-size:15px;"><i class="fa-solid fa-heart" style="color:#f02849;"></i> Your Hearted Projects</h3>
+                    <h3 style="margin-top:15px; font-size:15px;"><i class="fa-solid fa-heart" style="color:#f02849;"></i> Your Hearted Projects</h3>
                     <div style="max-height:200px; overflow-y:auto; margin-bottom:15px;">${lovedHtml}</div>
 
-                    <button onclick="logoutUser()" class="action-btn" style="background:#fee2e2; color:#dc2626; padding:8px; margin-top:10px; width:100%; justify-content:center;">Log Out</button>
+                    <button onclick="logoutUser()" class="action-btn" style="background:#fee2e2; color:#dc2626; padding:8px; margin-top:10px; width:100%; justify-content:center; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Log Out</button>
                 </div>
             </div>
         `;
-    } catch(e) {}
+    } catch(e) {
+        container.innerHTML = '<p style="color:red; text-align:center;">Failed to load profile.</p>';
+    }
 }
 
 let tempUsername = '';
@@ -441,20 +487,26 @@ function openAuthModal() {
         m.id = 'auth-modal';
         m.className = 'modal-backdrop';
         m.innerHTML = `
-            <div class="modal-content">
+            <div class="modal-content" style="background:#fff; padding:20px; border-radius:8px; width:320px; max-width:90%;">
                 <h3>Sign Up / Log In</h3>
                 <div id="auth-step-1">
-                    <input type="text" id="auth-user" placeholder="Scratch Username" class="comment-field" style="margin-bottom:10px;">
+                    <input type="text" id="auth-user" placeholder="Scratch Username" class="comment-field" style="margin-bottom:10px; width:100%; padding:8px;">
                     <button onclick="reqCode()" class="comment-submit-btn" style="width:100%;">Get Verification Code</button>
                 </div>
                 <div id="auth-step-2" style="display:none;">
                     <p id="auth-inst" style="font-size:13px; margin-bottom:10px;"></p>
-                    <input type="password" id="auth-pass" placeholder="Create Password" class="comment-field" style="margin-bottom:10px;">
-                    <input type="text" id="auth-ref" placeholder="Friend's Referral Code (Optional)" class="comment-field" style="margin-bottom:10px; border-color:#22c55e;">
+                    <input type="password" id="auth-pass" placeholder="Create Password" class="comment-field" style="margin-bottom:10px; width:100%; padding:8px;">
+                    
+                    <div style="background:#f0fdf4; border:1px solid #22c55e; padding:10px; border-radius:6px; margin-bottom:10px;">
+                        <b style="font-size:12px; color:#15803d;"><i class="fa-solid fa-gift"></i> Have a friend's referral code?</b>
+                        <p style="font-size:11px; color:#166534; margin:3px 0 8px 0;">Enter it below to get 10 free starting coins when you sign up!</p>
+                        <input type="text" id="auth-ref" placeholder="Friend's Referral Code (Optional)" class="comment-field" style="border-color:#22c55e; width:100%; padding:6px;">
+                    </div>
+
                     <button onclick="verifyCode()" class="comment-submit-btn" style="width:100%;">Verify & Register</button>
                 </div>
                 <div id="auth-toggle" style="margin-top:15px; text-align:center; font-size:13px;"><a href="#" onclick="toggleLogin()">Log in instead</a></div>
-                <button onclick="closeAuthModal()" style="margin-top:10px; background:none; border:none; width:100%;">Cancel</button>
+                <button onclick="closeAuthModal()" style="margin-top:10px; background:none; border:none; width:100%; cursor:pointer;">Cancel</button>
             </div>
         `;
         document.body.appendChild(m);
@@ -462,7 +514,10 @@ function openAuthModal() {
     m.style.display = 'flex';
 }
 
-function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
+function closeAuthModal() { 
+    const m = document.getElementById('auth-modal');
+    if (m) m.style.display = 'none'; 
+}
 
 async function reqCode() {
     tempUsername = document.getElementById('auth-user').value;
@@ -482,22 +537,29 @@ async function verifyCode() {
     if (!res.ok) return alert(data.error);
     currentUser = data.username;
     localStorage.setItem('blockbuzz_user', currentUser);
-    if(data.coins > 0) alert(`Success! You earned ${data.coins} coins from the referral!`);
+    if(data.coins > 0) alert(`Success! You earned bonus coins!`);
     updateAuthUI(); closeAuthModal(); switchTab('account');
 }
 
 function toggleLogin() {
-    document.getElementById('auth-step-1').innerHTML = `
-        <input type="text" id="login-user" placeholder="Username" class="comment-field" style="margin-bottom:10px;">
-        <input type="password" id="login-pass" placeholder="Password" class="comment-field" style="margin-bottom:10px;">
+    const step1 = document.getElementById('auth-step-1');
+    const toggle = document.getElementById('auth-toggle');
+    if (!step1) return;
+    step1.innerHTML = `
+        <input type="text" id="login-user" placeholder="Username" class="comment-field" style="margin-bottom:10px; width:100%; padding:8px;">
+        <input type="password" id="login-pass" placeholder="Password" class="comment-field" style="margin-bottom:10px; width:100%; padding:8px;">
         <button onclick="loginUser()" class="comment-submit-btn" style="width:100%;">Log In</button>
     `;
-    document.getElementById('auth-toggle').style.display = 'none';
+    if (toggle) toggle.style.display = 'none';
 }
 
 async function loginUser() {
-    const username = document.getElementById('login-user').value;
-    const password = document.getElementById('login-pass').value;
+    const usernameElem = document.getElementById('login-user');
+    const passwordElem = document.getElementById('login-pass');
+    if (!usernameElem || !passwordElem) return;
+    const username = usernameElem.value;
+    const password = passwordElem.value;
+
     const res = await fetch(`${API_URL}/auth/login`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({username, password})});
     if (!res.ok) return alert("Invalid credentials");
     currentUser = (await res.json()).username;
@@ -506,4 +568,9 @@ async function loginUser() {
 }
 
 function logoutUser() { currentUser = null; localStorage.removeItem('blockbuzz_user'); updateAuthUI(); switchTab('home'); }
-function updateAuthUI() { document.getElementById('auth-container').innerHTML = currentUser ? `<b style="color:#0095f6;cursor:pointer;" onclick="switchTab('account')">@${currentUser}</b>` : `<button onclick="openAuthModal()" class="comment-submit-btn">Login / Sign Up</button>`; }
+function updateAuthUI() { 
+    const container = document.getElementById('auth-container');
+    if (container) {
+        container.innerHTML = currentUser ? `<b style="color:#0095f6;cursor:pointer;" onclick="switchTab('account')">@${currentUser}</b>` : `<button onclick="openAuthModal()" class="comment-submit-btn">Login / Sign Up</button>`;
+    }
+}
