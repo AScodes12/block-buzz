@@ -68,7 +68,6 @@ async function submitPost() {
 
 async function likePost(id) {
     try {
-        const response = type => fetch(`${API_URL}/posts/${id}/like`, { method: 'POST' });
         const res = await fetch(`${API_URL}/posts/${id}/like`, { method: 'POST' });
         const data = await res.json();
         document.getElementById(`likes-${id}`).innerText = formatNumber(data.likes);
