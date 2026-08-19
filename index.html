@@ -14,7 +14,6 @@
             <button class="nav-link active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
             <button class="nav-link" onclick="switchTab('explore')"><i class="fa-solid fa-compass"></i> Explore</button>
             <button class="nav-link" onclick="switchTab('shop')"><i class="fa-solid fa-store"></i> Shop</button>
-            <button class="nav-link" onclick="switchTab('notifications')"><i class="fa-solid fa-bell"></i> Notifications</button>
             <button class="nav-link" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Account</button>
         </nav>
         <div id="auth-container"></div>
@@ -23,53 +22,38 @@
     <main class="main-container">
         <!-- Home Feed Section -->
         <div id="feed-section" class="tab-content">
-            <div id="featured-container"></div>
             <div class="create-post-box">
-                <h3>Share a Scratch Project</h3>
+                <h3>Share Your Own Project</h3>
                 <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID..." class="comment-field" style="margin-bottom:8px;">
-                <textarea id="post-caption" placeholder="What do you think of this project?" class="comment-field" style="height:60px; margin-bottom:8px;"></textarea>
-                <button onclick="submitPost()" class="comment-submit-btn post-btn"><i class="fa-solid fa-paper-plane"></i> Post (+10 Coins)</button>
+                <textarea id="post-caption" placeholder="Tell us about your project!" class="comment-field" style="height:60px; margin-bottom:8px;"></textarea>
+                <button onclick="submitPost()" class="comment-submit-btn post-btn"><i class="fa-solid fa-paper-plane"></i> Post</button>
             </div>
             <div id="feed"></div>
         </div>
 
         <!-- Explore Section -->
         <div id="explore-section" class="tab-content" style="display:none;">
-            <h2>Explore Top Projects</h2>
+            <h2>Top Rated Projects</h2>
             <div id="explore-feed"></div>
         </div>
 
         <!-- Shop Section -->
         <div id="shop-section" class="tab-content" style="display:none;">
-            <h2><i class="fa-solid fa-store" style="color:var(--primary-color);"></i> Discord-Style Profile Banners</h2>
-            <p style="font-size:13px; color:#65676b; margin-bottom:15px;">Customize your profile with custom Discord-style gradient banners using your coins!</p>
+            <h2><i class="fa-solid fa-store" style="color:var(--primary-color);"></i> Banner Shop</h2>
             <div id="shop-items-container"></div>
-            
-            <h3 style="margin-top:25px;"><i class="fa-solid fa-users" style="color:var(--primary-color);"></i> Referral System</h3>
-            <p style="font-size:13px; color:#65676b; margin-bottom:10px;">Give your Scratch username to friends. When they enter it here, you both get <b>50 coins</b>!</p>
-            <div class="project-card">
-                <input type="text" id="referral-code-input" placeholder="Enter friend's Scratch username..." class="comment-field" style="margin-bottom:8px;">
-                <button onclick="redeemReferral()" class="comment-submit-btn" style="width:100%;">Redeem Referral Code</button>
-            </div>
         </div>
 
-        <!-- Notifications Section -->
-        <div id="notifications-section" class="tab-content" style="display:none;">
-            <h2>Your Notifications</h2>
-            <div id="notifications-container"></div>
-        </div>
-
-        <!-- Account Profile Section -->
+        <!-- Account Section -->
         <div id="account-section" class="tab-content" style="display:none;">
             <div id="account-profile-content"></div>
         </div>
     </main>
 
-    <!-- Project Details Modal -->
+    <!-- Project Details Modal (Formatted) -->
     <div id="project-detail-modal" class="modal-backdrop">
-        <div class="modal-content" style="width: 500px; max-height: 90vh; overflow-y: auto;">
+        <div class="modal-content" style="width: 550px; max-height: 90vh; overflow-y: auto;">
             <div id="detail-modal-body"></div>
-            <button onclick="closeProjectModal()" class="action-btn" style="width:100%; justify-content:center; margin-top:15px; background:#e4e6eb; padding:8px; border-radius:6px;">Close</button>
+            <button onclick="closeProjectModal()" class="action-btn" style="width:100%; justify-content:center; margin-top:15px; background:#e4e6eb; padding:10px; border-radius:6px;">Close Window</button>
         </div>
     </div>
 
