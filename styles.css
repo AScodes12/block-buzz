@@ -1,0 +1,74 @@
+:root {
+    --bg-color: #f4f6f8;
+    --text-main: #333;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    margin: 0;
+    background: var(--bg-color);
+    color: var(--text-main);
+}
+
+.navbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 40px;
+    background: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+}
+
+.logo h1 { margin: 0; font-size: 26px; color: #2c3e50; }
+.logo p { margin: 0; font-size: 11px; color: #7f8c8d; letter-spacing: 1px; }
+.nav-icons i { font-size: 22px; margin-left: 20px; color: #555; cursor: pointer; }
+
+main { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+
+.create-post-section {
+    display: flex; flex-direction: column; gap: 12px; margin-bottom: 40px;
+    background: #fff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.03);
+}
+
+.create-post-section h3 { margin: 0; color: #2c3e50; }
+.create-post-section input { padding: 14px; border: 1px solid #e0e0e0; border-radius: 8px; font-size: 15px;}
+.create-post-section button { 
+    padding: 14px; background: #2ecc71; color: white; border: none; 
+    border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 15px;
+    transition: background 0.2s;
+}
+.create-post-section button:hover { background: #27ae60; }
+
+.project-card {
+    background: linear-gradient(135deg, #0f6280, #14806a);
+    border-radius: 16px;
+    color: white;
+    padding: 25px;
+    margin-bottom: 25px;
+    box-shadow: 0 6px 15px rgba(0,0,0,0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.card-left h2 { margin: 0 0 8px 0; font-size: 32px; text-transform: uppercase; letter-spacing: 1px; }
+.card-left .author-info { font-weight: bold; margin-bottom: 15px; font-size: 15px;}
+.card-left .desc { font-size: 15px; opacity: 0.95; max-width: 500px; line-height: 1.4; }
+
+.card-right {
+    display: flex; flex-direction: column; align-items: flex-end; gap: 15px;
+}
+
+.stars { color: white; font-size: 20px; }
+.stars span { font-size: 12px; margin-left: 8px; opacity: 0.9; }
+
+.love-btn {
+    background: white; color: #333; border: none; padding: 10px 25px; border-radius: 30px;
+    font-weight: 900; font-size: 16px; cursor: pointer; display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.4); transition: transform 0.2s;
+}
+.love-btn i { color: #2c3e50; }
+.love-btn:hover { transform: scale(1.05); }
+
+.stats { display: flex; gap: 20px; font-size: 13px; font-weight: bold; text-align: center; }
+.stats div span { display: block; font-size: 18px; margin-bottom: 3px; }
