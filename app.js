@@ -10,6 +10,7 @@ function switchTab(tabName) {
     document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
     document.getElementById('feed-section').style.display = 'none';
     document.getElementById('explore-section').style.display = 'none';
+    document.getElementById('shop-section').style.display = 'none';
     document.getElementById('notifications-section').style.display = 'none';
     document.getElementById('account-section').style.display = 'none';
 
@@ -19,6 +20,9 @@ function switchTab(tabName) {
     } else if (tabName === 'explore') {
         document.getElementById('explore-section').style.display = 'block';
         loadExplore();
+    } else if (tabName === 'shop') {
+        document.getElementById('shop-section').style.display = 'block';
+        loadShop();
     } else if (tabName === 'notifications') {
         document.getElementById('notifications-section').style.display = 'block';
         loadNotifications();
@@ -55,7 +59,6 @@ function renderFeatured(posts) {
         container.innerHTML = '';
         return;
     }
-    // Find the post with the highest engagement (likes + views)
     const featured = [...posts].sort((a, b) => (b.blockbuzz_likes + b.blockbuzz_views) - (a.blockbuzz_likes + a.blockbuzz_views))[0];
     
     container.innerHTML = `
@@ -141,6 +144,103 @@ async function renderFeed(containerId, posts) {
         `;
         feed.appendChild(card);
     });
+}
+
+const shopBanners = [
+    { name: 'Ocean Breeze', style: 'linear-gradient(135deg, #0095f6 0%, #60a5fa 100%)', cost: 0 },
+    { name: 'Neon Sunset', style: 'linear-gradient(135deg, #f43f5e 0%, #fb923c 100%)', cost: 50 },
+    { name: 'Cyber Hacker', style: 'linear-gradient(135deg, #10b981 0%, #06b6d4 100%)', cost: 75 },
+    { name: 'Royal Purple', style: 'linear-gradient(135deg, #8b5cf6 0%, #ec4899 100%)', cost: 100 },
+    { name: 'Dark Mode Obsidian', style: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', cost: 150 }
+];
+
+async function loadShop() {
+    const container = document.getElementById('shop-items-container');
+    if (!currentUser) {
+        container.innerHTML = '<p style="color:#65676b; text-align:center;">Please log in to use the shop.</p>';
+        return;
+    }
+
+    try {
+        const res = await fetch(`${API_URL}/users/${currentUser}`);
+        const data = await res.json();
+        const userCoins = data.coins || 0;
+        const inventory = data.inventory || [];
+
+        let html = `<div style="margin-bottom:15px; font-weight:bold; color:var(--primary-color);"><i class="fa-solid fa-coins"></i> Your Balance: ${userCoins} Coins</div>`;
+
+        shopBanners.forEach(b => {
+            const owned = inventory.includes(b.style) || b.cost === 0;
+            const equipped = data.banner === b.style;
+
+            html += `
+                <div class="shop-card" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div>
+                        <div style="height:35px; width:120px; background:${b.style}; border-radius:6px; margin-bottom:6px;"></div>
+                        <b>${b.name}</b> <span style="font-size:12px; color:#65676b;">(${b.cost} Coins)</span>
+                    </div>
+                    <div>
+                        ${equipped ? '<span style="font-size:12px; font-weight:bold; color:#10b981;">Equipped</span>' : 
+                          owned ? `<button onclick="equipBanner('${b.style}')" class="comment-submit-btn" style="background:#65676b;">Equip</button>` : 
+                          `<button onclick="buyBanner('${b.style}', ${b.cost})" class="comment-submit-btn">Buy</button>`}
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = '<p style="color:red;">Error loading shop items.</p>';
+    }
+}
+
+async function buyBanner(style, cost) {
+    try {
+        const res = await fetch(`${API_URL}/shop/buy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser, bannerStyle: style, cost })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        loadShop();
+        updateAuthUI();
+    } catch (e) {
+        alert(e.message);
+    }
+}
+
+async function equipBanner(style) {
+    try {
+        const res = await fetch(`${API_URL}/shop/equip`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser, bannerStyle: style })
+        });
+        if (res.ok) loadShop();
+    } catch (e) {
+        alert("Error equipping banner");
+    }
+}
+
+async function redeemReferral() {
+    const code = document.getElementById('referral-code-input').value.trim();
+    if (!code) return alert("Enter a username code!");
+
+    try {
+        const res = await fetch(`${API_URL}/referral/redeem`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: currentUser, code })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        alert("Referral code redeemed successfully! You received 50 coins!");
+        document.getElementById('referral-code-input').value = '';
+        switchTab('account');
+    } catch (e) {
+        alert(e.message);
+    }
 }
 
 async function incrementView(postId) {
@@ -255,20 +355,26 @@ async function loadAccountPage() {
         }
 
         container.innerHTML = `
-            <div class="project-card" style="text-align:center; padding:25px;">
-                <i class="fa-solid fa-circle-user" style="font-size:60px; color:var(--primary-color); margin-bottom:10px;"></i>
-                <h2 style="margin:0 0 5px 0;">@${data.username}</h2>
-                <p style="font-size:13px; color:#65676b; margin-bottom:15px;">Verified Scratch Creator on BlockBuzz</p>
-                <div style="display:flex; justify-content:center; gap:30px; border-top:1px solid #ddd; border-bottom:1px solid #ddd; padding:10px 0; margin-bottom:20px; font-size:14px;">
-                    <div><b>${data.posts.length}</b> Shared Projects</div>
-                    <div><b>${data.commentCount}</b> Comments Made</div>
+            <div class="discord-profile-card">
+                <div class="discord-banner" style="background: ${data.banner};"></div>
+                <div class="discord-profile-body">
+                    <div class="discord-avatar-container">
+                        <img src="${data.pfp}" alt="Scratch Avatar" onerror="this.src='https://uploads.scratch.mit.edu/get_image/user/1_90x90.png'">
+                    </div>
+                    <h2 style="margin:0 0 2px 0;">@${data.username} <i class="fa-solid fa-circle-check" style="color:#0095f6; font-size:16px;" title="Verified Scratch Creator"></i></h2>
+                    <p style="font-size:12px; color:#65676b; margin:0 0 12px 0;"><i class="fa-solid fa-coins" style="color:#eab308;"></i> <b>${data.coins}</b> Coins available</p>
+                    <div style="display:flex; gap:20px; border-top:1px solid #eee; padding-top:12px; margin-bottom:15px; font-size:13px;">
+                        <div><b>${data.posts.length}</b> Shared Projects</div>
+                        <div><b>${data.commentCount}</b> Comments Made</div>
+                    </div>
+                    <button onclick="logoutUser()" class="action-btn" style="background:#fee2e2; color:#dc2626; padding:6px 12px; border-radius:6px; justify-content:center; width:100%;">Log Out</button>
                 </div>
-                <button onclick="logoutUser()" class="action-btn" style="background:#fee2e2; color:#dc2626; padding:8px 16px; border-radius:6px; margin:0 auto; justify-content:center;">Log Out</button>
             </div>
             <h3 style="margin-top:20px;">Your Shared Projects</h3>
             ${postsHtml}
         `;
     } catch (err) {
+        console.error(err);
         container.innerHTML = '<p style="text-align:center; color:red;">Error loading account profile.</p>';
     }
 }
@@ -314,7 +420,7 @@ async function submitPost() {
         console.error(err);
         alert("Server error connecting to API.");
     } finally {
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Post';
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Post (+10 Coins)';
         btn.disabled = false;
     }
 }
@@ -394,7 +500,7 @@ function openAuthModal() {
             <div class="modal-content">
                 <h3>Scratch Bio Verification</h3>
                 <div id="auth-step-1">
-                    <p style="font-size:13px; color:#65676b; margin-bottom:10px;">Enter your Scratch username to verify your identity:</p>
+                    <p style="font-size:13px; color:#65676b; margin-bottom:10px;">Enter your Scratch username to verify your identity & sync your profile picture:</p>
                     <input type="text" id="scratch-username-input" placeholder="Scratch Username" class="comment-field" style="width:100%; margin-bottom:10px;">
                     <button onclick="requestVerificationCode()" class="comment-submit-btn" style="width:100%; padding: 10px;">Get Verification Code</button>
                 </div>
@@ -460,7 +566,7 @@ async function verifyAndRegister() {
         localStorage.setItem('blockbuzz_user', currentUser);
         updateAuthUI();
         closeAuthModal();
-        alert(`Successfully verified and logged in as @${currentUser}! You can now remove the code from your Scratch bio.`);
+        alert(`Successfully verified and logged in as @${currentUser}! You received 50 free coins!`);
     } catch (err) {
         alert(err.message);
     }
