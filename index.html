@@ -3,44 +3,41 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockBuzz</title>
+    <title>BlockBuzz - Scratch Social Hub</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <header class="navbar">
-        <div class="logo">
-            <h1>BlockBuzz</h1>
-            <p>Curate your Scratch universe.</p>
-        </div>
-        <div class="nav-icons">
-            <i class="fa-solid fa-house active" onclick="alert('Home feed refreshed!')"></i>
-            <i class="fa-solid fa-compass" onclick="alert('Explore page coming soon!')"></i>
-            <i class="fa-solid fa-bell" onclick="alert('You have 0 new notifications.')"></i>
-            <i class="fa-solid fa-user" onclick="alert('Profile settings opening...')"></i>
-        </div>
+        <div class="nav-brand">BlockBuzz</div>
+        <nav class="nav-links">
+            <button class="nav-link active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
+            <button class="nav-link" onclick="switchTab('explore')"><i class="fa-solid fa-compass"></i> Explore</button>
+            <button class="nav-link" onclick="switchTab('notifications')"><i class="fa-solid fa-bell"></i> Notifications</button>
+        </nav>
+        <div id="auth-container"></div>
     </header>
 
-    <main>
-        <section class="compose-box">
-            <div class="compose-header">
-                <i class="fa-solid fa-pen-to-square"></i> Share a Project
+    <main class="main-container">
+        <div id="feed-section" class="tab-content">
+            <div class="create-post-box">
+                <h3>Share a Scratch Project</h3>
+                <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID..." class="comment-field" style="margin-bottom:8px;">
+                <textarea id="post-caption" placeholder="What do you think of this project?" class="comment-field" style="height:60px; margin-bottom:8px;"></textarea>
+                <button onclick="submitPost()" class="comment-submit-btn post-btn"><i class="fa-solid fa-paper-plane"></i> Post</button>
             </div>
-            <div class="compose-body">
-                <div class="input-row">
-                    <input type="text" id="post-username" placeholder="Your Display Name" class="minimal-input">
-                    <input type="text" id="scratch-input" placeholder="Scratch Project URL or ID" class="minimal-input">
-                </div>
-                <textarea id="post-caption" placeholder="Why are you sharing this? Add a caption..." class="minimal-textarea"></textarea>
-            </div>
-            <div class="compose-footer">
-                <button onclick="submitPost()" class="post-btn"><i class="fa-solid fa-paper-plane"></i> Post</button>
-            </div>
-        </section>
-        
-        <section id="feed" class="feed">
-            <!-- Feed loads here -->
-        </section>
+            <div id="feed"></div>
+        </div>
+
+        <div id="explore-section" class="tab-content" style="display:none;">
+            <h2>Explore Top Projects</h2>
+            <div id="explore-feed"></div>
+        </div>
+
+        <div id="notifications-section" class="tab-content" style="display:none;">
+            <h2>Your Notifications</h2>
+            <div id="notifications-container"></div>
+        </div>
     </main>
 
     <script src="app.js"></script>
