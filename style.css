@@ -102,3 +102,12 @@ main { max-width: 600px; margin: 40px auto; padding: 0 15px; }
 }
 .action-btn:hover { color: #f02849; }
 .action-btn i.loved { color: #f02849; }
+
+.comments-section { padding: 15px; background: #f9fafb; border-top: 1px solid var(--border-color); }
+.comments-list { font-size: 13px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 6px; }
+.comment-item { background: #ffffff; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border-color); }
+.no-comments { color: var(--text-muted); font-style: italic; font-size: 12px; }
+.comment-input-row { display: flex; gap: 8px; }
+.comment-name-input { width: 100px; padding: 8px; border: 1px solid #ccd0d5; border-radius: 6px; font-size: 12px; outline: none; }
+.comment-field { flex: 1; padding: 8px 12px; border: 1px solid #ccd0d5; border-radius: 6px; font-size: 13px; outline: none; }
+.comment-submit-btn { background: var(--accent); color: white; border: none; padding: 0 14px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; }
