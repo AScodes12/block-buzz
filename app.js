@@ -1,4 +1,4 @@
-const API_URL = 'https://expenditures-guardian-episodes-ballet.trycloudflare.com/api'; 
+const API_URL = 'https://desired-meter-pct-athletic.trycloudflare.com/api'; 
 
 async function loadPosts() {
     try {
@@ -15,8 +15,9 @@ async function loadPosts() {
             const formattedViews = formatNumber(post.views);
 
             card.innerHTML = `
+                <img src="${post.thumbnail}" alt="Thumbnail" class="project-thumbnail" onerror="this.src='https://uploads.scratch.mit.edu/get_image/project/1_480x360.png'">
                 <div class="card-left">
-                    <h2>${post.title}</h2>
+                    <h2><a href="https://scratch.mit.edu/projects/${post.scratchId}" target="_blank" style="color:white; text-decoration:none;">${post.title}</a></h2>
                     <div class="author-info">${post.author} &nbsp;&nbsp; Level: ${post.level}</div>
                     <div class="desc">${post.description}</div>
                 </div>
@@ -43,27 +44,31 @@ async function loadPosts() {
 }
 
 async function submitPost() {
-    const titleInput = document.getElementById('post-title');
-    const descInput = document.getElementById('post-desc');
+    const inputField = document.getElementById('scratch-input');
     
-    if(!titleInput.value) {
-        alert("A project title is required!");
+    if(!inputField.value) {
+        alert("Please enter a Scratch Project URL or ID!");
         return;
     }
 
-    await fetch(`${API_URL}/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            title: titleInput.value,
-            description: descInput.value,
-            author: '@ScratchCoder'
-        })
-    });
-    
-    titleInput.value = '';
-    descInput.value = '';
-    loadPosts();
+    try {
+        const response = await fetch(`${API_URL}/posts`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scratchInput: inputField.value })
+        });
+        
+        if (!response.ok) {
+            alert("Could not load project from Scratch. Check your link or ID!");
+            return;
+        }
+
+        inputField.value = '';
+        loadPosts();
+    } catch (err) {
+        console.error(err);
+        alert("Server error connecting to Scratch API.");
+    }
 }
 
 async function likePost(id) {
