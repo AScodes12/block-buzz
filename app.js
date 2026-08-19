@@ -11,6 +11,7 @@ function switchTab(tabName) {
     document.getElementById('feed-section').style.display = 'none';
     document.getElementById('explore-section').style.display = 'none';
     document.getElementById('notifications-section').style.display = 'none';
+    document.getElementById('account-section').style.display = 'none';
 
     if (tabName === 'home') {
         document.getElementById('feed-section').style.display = 'block';
@@ -21,6 +22,9 @@ function switchTab(tabName) {
     } else if (tabName === 'notifications') {
         document.getElementById('notifications-section').style.display = 'block';
         loadNotifications();
+    } else if (tabName === 'account') {
+        document.getElementById('account-section').style.display = 'block';
+        loadAccountPage();
     }
 }
 
@@ -29,6 +33,7 @@ async function loadPosts() {
         const res = await fetch(`${API_URL}/posts`);
         const posts = await res.json();
         renderFeed('feed', posts);
+        renderFeatured(posts);
     } catch (err) {
         console.error('Error loading posts:', err);
     }
@@ -42,6 +47,28 @@ async function loadExplore() {
     } catch (err) {
         console.error('Error loading explore:', err);
     }
+}
+
+function renderFeatured(posts) {
+    const container = document.getElementById('featured-container');
+    if (!posts || posts.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+    // Find the post with the highest engagement (likes + views)
+    const featured = [...posts].sort((a, b) => (b.blockbuzz_likes + b.blockbuzz_views) - (a.blockbuzz_likes + a.blockbuzz_views))[0];
+    
+    container.innerHTML = `
+        <div class="featured-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-weight:bold; color:var(--primary-color); font-size:13px;"><i class="fa-solid fa-star"></i> Featured Project</span>
+                <span style="font-size:12px; color:#65676b;">By ${featured.author}</span>
+            </div>
+            <h3 style="margin:0 0 6px 0; font-size:16px;"><a href="#" onclick="openProjectModal(${featured.id}); return false;" style="color:var(--text-color); text-decoration:none;">${featured.title}</a></h3>
+            <p style="font-size:13px; color:#65676b; margin:0 0 10px 0;">${featured.caption}</p>
+            <img src="${featured.thumbnail}" alt="Thumbnail" class="project-thumb" style="max-height:220px; object-fit:cover;" onclick="openProjectModal(${featured.id})">
+        </div>
+    `;
 }
 
 async function renderFeed(containerId, posts) {
@@ -68,12 +95,15 @@ async function renderFeed(containerId, posts) {
 
         let commentsHtml = '';
         if (post.comments && post.comments.length > 0) {
-            post.comments.forEach(c => {
+            post.comments.slice(-2).forEach(c => {
                 commentsHtml += `<div class="comment-item"><strong>${c.commenterName}:</strong> ${c.text}</div>`;
             });
         } else {
             commentsHtml = `<div class="no-comments">No BlockBuzz comments yet. Be the first!</div>`;
         }
+
+        const likedPosts = JSON.parse(localStorage.getItem('blockbuzz_liked_posts') || '{}');
+        const isLoved = likedPosts[post.id] || false;
 
         card.innerHTML = `
             <div class="card-header">
@@ -81,10 +111,10 @@ async function renderFeed(containerId, posts) {
                 ${poster} shared a project
             </div>
             
-            <img src="${post.thumbnail}" alt="Thumbnail" class="project-thumb" onerror="this.src='https://uploads.scratch.mit.edu/get_image/project/1_480x360.png'">
+            <img src="${post.thumbnail}" alt="Thumbnail" class="project-thumb" onclick="openProjectModal(${post.id})" onerror="this.src='https://uploads.scratch.mit.edu/get_image/project/1_480x360.png'">
             
             <div class="card-body">
-                <h2 class="card-title"><a href="https://scratch.mit.edu/projects/${post.scratchId}" target="_blank">${title}</a></h2>
+                <h2 class="card-title"><a href="#" onclick="openProjectModal(${post.id}); return false;">${title}</a></h2>
                 <div class="card-author">Created by ${author}</div>
                 <p class="card-caption">${caption}</p>
             </div>
@@ -94,8 +124,8 @@ async function renderFeed(containerId, posts) {
                     <span><i class="fa-solid fa-heart" style="color:#f02849;"></i> <span id="likes-${post.id}">${formattedLikes}</span></span>
                     <span style="margin-left: 15px;"><i class="fa-solid fa-eye" style="color:#0095f6;"></i> <span id="views-${post.id}">${formattedViews}</span></span>
                 </div>
-                <button class="action-btn" onclick="likePost(${post.id}, this)">
-                    <i class="fa-regular fa-heart"></i> Love
+                <button class="action-btn ${isLoved ? 'loved' : ''}" id="like-btn-${post.id}" onclick="toggleLike(${post.id})">
+                    <i class="${isLoved ? 'fa-solid' : 'fa-regular'} fa-heart"></i> Love
                 </button>
             </div>
 
@@ -121,6 +151,125 @@ async function incrementView(postId) {
         if (viewEl) viewEl.innerText = formatNumber(data.views);
     } catch (err) {
         console.error('Error incrementing view:', err);
+    }
+}
+
+async function toggleLike(id) {
+    const likedPosts = JSON.parse(localStorage.getItem('blockbuzz_liked_posts') || '{}');
+    const isAlreadyLoved = likedPosts[id] || false;
+    const action = isAlreadyLoved ? 'unlike' : 'like';
+
+    try {
+        const res = await fetch(`${API_URL}/posts/${id}/like`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action })
+        });
+        const data = await res.json();
+        
+        document.getElementById(`likes-${id}`).innerText = formatNumber(data.likes);
+        
+        const btnElement = document.getElementById(`like-btn-${id}`);
+        const icon = btnElement.querySelector('i');
+        
+        if (action === 'like') {
+            likedPosts[id] = true;
+            btnElement.classList.add('loved');
+            icon.classList.remove('fa-regular');
+            icon.classList.add('fa-solid');
+        } else {
+            delete likedPosts[id];
+            btnElement.classList.remove('loved');
+            icon.classList.remove('fa-solid');
+            icon.classList.add('fa-regular');
+        }
+        localStorage.setItem('blockbuzz_liked_posts', JSON.stringify(likedPosts));
+    } catch (error) {
+        console.error('Error liking post:', error);
+    }
+}
+
+async function openProjectModal(postId) {
+    const modal = document.getElementById('project-detail-modal');
+    const modalBody = document.getElementById('detail-modal-body');
+    modalBody.innerHTML = '<p style="text-align:center; padding:20px;"><i class="fa-solid fa-spinner fa-spin"></i> Loading project from Scratch...</p>';
+    modal.style.display = 'flex';
+
+    try {
+        const res = await fetch(`${API_URL}/posts/${postId}`);
+        const post = await res.json();
+
+        modalBody.innerHTML = `
+            <img src="${post.thumbnail}" alt="Thumbnail" class="project-thumb" style="max-height:240px; object-fit:cover;">
+            <h2 style="margin: 0 0 5px 0;"><a href="https://scratch.mit.edu/projects/${post.scratchId}" target="_blank" style="color:var(--primary-color); text-decoration:none;">${post.title} <i class="fa-solid fa-external-link" style="font-size:12px;"></i></a></h2>
+            <div style="font-size:13px; color:#65676b; margin-bottom:12px;">Created by <b>${post.author}</b> • Shared by @${post.posterName || 'Anonymous'}</div>
+            <p style="font-size:14px; background:#f0f2f5; padding:10px; border-radius:6px; margin-bottom:12px;"><b>Caption:</b> ${post.caption}</p>
+            
+            <div style="margin-bottom:12px;">
+                <h4 style="margin:0 0 4px 0; font-size:14px;">Instructions:</h4>
+                <p style="font-size:13px; color:#333; margin:0; background:#f9fafb; padding:8px; border-radius:6px; border:1px solid #eee;">${post.instructions}</p>
+            </div>
+
+            <div style="margin-bottom:15px;">
+                <h4 style="margin:0 0 4px 0; font-size:14px;">Notes and Credits:</h4>
+                <p style="font-size:13px; color:#333; margin:0; background:#f9fafb; padding:8px; border-radius:6px; border:1px solid #eee;">${post.description}</p>
+            </div>
+        `;
+    } catch (err) {
+        modalBody.innerHTML = '<p style="text-align:center; color:red;">Could not load project details.</p>';
+    }
+}
+
+function closeProjectModal() {
+    document.getElementById('project-detail-modal').style.display = 'none';
+}
+
+async function loadAccountPage() {
+    const container = document.getElementById('account-profile-content');
+    if (!currentUser) {
+        container.innerHTML = '<div class="project-card" style="text-align:center; padding:30px;"><p>You are not logged in.</p><button onclick="openAuthModal()" class="comment-submit-btn">Login / Verify with Scratch</button></div>';
+        return;
+    }
+
+    container.innerHTML = `<p style="text-align:center;"><i class="fa-solid fa-spinner fa-spin"></i> Loading profile...</p>`;
+
+    try {
+        const res = await fetch(`${API_URL}/users/${currentUser}`);
+        const data = await res.json();
+
+        let postsHtml = '';
+        if (data.posts && data.posts.length > 0) {
+            data.posts.forEach(p => {
+                postsHtml += `
+                    <div style="display:flex; align-items:center; gap:10px; background:#f9fafb; padding:10px; border-radius:8px; border:1px solid #ddd; margin-bottom:8px;">
+                        <img src="${p.thumbnail}" style="width:80px; height:60px; border-radius:4px; object-fit:cover;">
+                        <div>
+                            <h4 style="margin:0 0 4px 0; font-size:14px;">${p.title}</h4>
+                            <span style="font-size:12px; color:#65676b;"><i class="fa-solid fa-heart" style="color:#f02849;"></i> ${p.blockbuzz_likes || 0} &nbsp;|&nbsp; <i class="fa-solid fa-eye" style="color:#0095f6;"></i> ${p.blockbuzz_views || 0}</span>
+                        </div>
+                    </div>
+                `;
+            });
+        } else {
+            postsHtml = '<p style="color:#65676b; font-size:13px; font-style:italic;">You haven\'t shared any projects yet.</p>';
+        }
+
+        container.innerHTML = `
+            <div class="project-card" style="text-align:center; padding:25px;">
+                <i class="fa-solid fa-circle-user" style="font-size:60px; color:var(--primary-color); margin-bottom:10px;"></i>
+                <h2 style="margin:0 0 5px 0;">@${data.username}</h2>
+                <p style="font-size:13px; color:#65676b; margin-bottom:15px;">Verified Scratch Creator on BlockBuzz</p>
+                <div style="display:flex; justify-content:center; gap:30px; border-top:1px solid #ddd; border-bottom:1px solid #ddd; padding:10px 0; margin-bottom:20px; font-size:14px;">
+                    <div><b>${data.posts.length}</b> Shared Projects</div>
+                    <div><b>${data.commentCount}</b> Comments Made</div>
+                </div>
+                <button onclick="logoutUser()" class="action-btn" style="background:#fee2e2; color:#dc2626; padding:8px 16px; border-radius:6px; margin:0 auto; justify-content:center;">Log Out</button>
+            </div>
+            <h3 style="margin-top:20px;">Your Shared Projects</h3>
+            ${postsHtml}
+        `;
+    } catch (err) {
+        container.innerHTML = '<p style="text-align:center; color:red;">Error loading account profile.</p>';
     }
 }
 
@@ -167,21 +316,6 @@ async function submitPost() {
     } finally {
         btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Post';
         btn.disabled = false;
-    }
-}
-
-async function likePost(id, btnElement) {
-    try {
-        const res = await fetch(`${API_URL}/posts/${id}/like`, { method: 'POST' });
-        const data = await res.json();
-        document.getElementById(`likes-${id}`).innerText = formatNumber(data.likes);
-        
-        const icon = btnElement.querySelector('i');
-        icon.classList.remove('fa-regular');
-        icon.classList.add('fa-solid');
-        btnElement.style.color = '#f02849';
-    } catch (error) {
-        console.error('Error liking post:', error);
     }
 }
 
@@ -378,9 +512,9 @@ function updateAuthUI() {
     if (!authContainer) return;
 
     if (currentUser) {
-        authContainer.innerHTML = `<span style="font-weight:600; color:#0095f6;">@${currentUser}</span> <button onclick="logoutUser()" class="comment-submit-btn" style="padding: 4px 8px; margin-left: 8px; font-size:11px;">Logout</button>`;
+        authContainer.innerHTML = `<span style="font-weight:600; color:#0095f6; cursor:pointer;" onclick="switchTab('account')">@${currentUser}</span>`;
     } else {
-        authContainer.innerHTML = `<button onclick="openAuthModal()" class="comment-submit-btn" style="padding: 6px 12px; font-size:12px;">Login / Verify with Scratch</button>`;
+        authContainer.innerHTML = `<button onclick="openAuthModal()" class="comment-submit-btn" style="padding: 6px 12px; font-size:12px;">Login / Verify</button>`;
     }
 }
 
