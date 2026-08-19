@@ -64,7 +64,6 @@ async function renderFeed(containerId, posts) {
         const title = post.title || 'Untitled Project';
         const author = post.author || 'Unknown';
 
-        // Register view when card is rendered/viewed
         incrementView(post.id);
 
         let commentsHtml = '';
@@ -249,7 +248,6 @@ async function loadNotifications() {
     }
 }
 
-// Scratch Comment Verification Auth Flow
 let verificationTempCode = '';
 
 function openAuthModal() {
@@ -260,19 +258,19 @@ function openAuthModal() {
         modal.className = 'modal-backdrop';
         modal.innerHTML = `
             <div class="modal-content">
-                <h3>Scratch Account Verification</h3>
+                <h3>Scratch Bio Verification</h3>
                 <div id="auth-step-1">
-                    <p>Enter your Scratch username to verify your identity via profile comment:</p>
+                    <p style="font-size:13px; color:#65676b; margin-bottom:10px;">Enter your Scratch username to verify your identity:</p>
                     <input type="text" id="scratch-username-input" placeholder="Scratch Username" class="comment-field" style="width:100%; margin-bottom:10px;">
                     <button onclick="requestVerificationCode()" class="comment-submit-btn" style="width:100%; padding: 10px;">Get Verification Code</button>
                 </div>
                 <div id="auth-step-2" style="display:none;">
-                    <p id="verify-instructions" style="font-size:13px; line-height:1.4; color:#333;"></p>
-                    <input type="password" id="new-password-input" placeholder="Choose a BlockBuzz Password" class="comment-field" style="width:100%; margin:10px 0;">
+                    <p id="verify-instructions" style="font-size:13px; line-height:1.4; color:#333; margin-bottom:10px;"></p>
+                    <input type="password" id="new-password-input" placeholder="Choose a BlockBuzz Password" class="comment-field" style="width:100%; margin-bottom:10px;">
                     <button onclick="verifyAndRegister()" class="comment-submit-btn" style="width:100%; padding: 10px;">Verify & Register</button>
                 </div>
                 <div id="auth-login-toggle" style="margin-top:15px; text-align:center; font-size:13px;">
-                    Already verified? <a href="#" onclick="toggleLoginMode()" style="color:#0095f6;">Log in instead</a>
+                    Already registered? <a href="#" onclick="toggleLoginMode()" style="color:#0095f6;">Log in instead</a>
                 </div>
                 <button onclick="closeAuthModal()" style="margin-top:15px; background:none; border:none; color:#666; cursor:pointer; width:100%;">Cancel</button>
             </div>
@@ -305,7 +303,7 @@ async function requestVerificationCode() {
 
         document.getElementById('auth-step-1').style.display = 'none';
         document.getElementById('auth-step-2').style.display = 'block';
-        document.getElementById('verify-instructions').innerHTML = `1. Go to your <a href="https://scratch.mit.dev/users/${username}" target="_blank">Scratch Profile</a>.<br>2. Post this exact code as a comment: <b>${verificationCode}</b><br>3. Come back here and set your password!`;
+        document.getElementById('verify-instructions').innerHTML = `1. Go to your <a href="https://scratch.mit.edu/users/${username}" target="_blank">Scratch Profile</a>.<br>2. Add this code to your <b>About Me (Bio)</b>: <br><code style="background:#e4e6eb; padding:3px 6px; font-weight:bold; display:inline-block; margin:4px 0;">${verificationTempCode}</code><br>3. Come back here and set your password!`;
     } catch (err) {
         alert(err.message);
     }
@@ -328,7 +326,7 @@ async function verifyAndRegister() {
         localStorage.setItem('blockbuzz_user', currentUser);
         updateAuthUI();
         closeAuthModal();
-        alert(`Successfully verified and logged in as @${currentUser}!`);
+        alert(`Successfully verified and logged in as @${currentUser}! You can now remove the code from your Scratch bio.`);
     } catch (err) {
         alert(err.message);
     }
@@ -337,7 +335,7 @@ async function verifyAndRegister() {
 function toggleLoginMode() {
     const step1 = document.getElementById('auth-step-1');
     step1.innerHTML = `
-        <p>Log in with your verified Scratch username:</p>
+        <p style="font-size:13px; color:#65676b; margin-bottom:10px;">Log in with your verified Scratch username:</p>
         <input type="text" id="login-username" placeholder="Scratch Username" class="comment-field" style="width:100%; margin-bottom:10px;">
         <input type="password" id="login-password" placeholder="Password" class="comment-field" style="width:100%; margin-bottom:10px;">
         <button onclick="loginUser()" class="comment-submit-btn" style="width:100%; padding: 10px;">Log In</button>
