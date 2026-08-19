@@ -22,13 +22,17 @@
 
     <main>
         <section class="create-post-section">
-            <h3>Share a New Project</h3>
-            <input type="text" id="post-title" placeholder="Project Title...">
-            <input type="text" id="post-desc" placeholder="Describe your project (Safe words only!)...">
-            <button onclick="submitPost()">Post to Feed</button>
+            <h3>Share a Real Scratch Project</h3>
+            <p class="sub-hint">Paste a Scratch Project URL or ID below to automatically pull its live thumbnail and stats!</p>
+            <div class="input-group">
+                <input type="text" id="scratch-input" placeholder="e.g., https://scratch.mit.edu/projects/769894732">
+                <button onclick="submitPost()">Load & Share</button>
+            </div>
         </section>
         
-        <section id="feed" class="feed"></section>
+        <section id="feed" class="feed">
+            <!-- Project feed items will load here -->
+        </section>
     </main>
 
     <script src="app.js"></script>
