@@ -1,5 +1,4 @@
-// REMEMBER TO UPDATE THIS WITH YOUR ACTIVE TUNNEL LINK
-const API_URL = 'https://review-baghdad-est-engagement.trycloudflare.com/api'; 
+const API_URL = 'https://fluid-mail-municipal-harbor.trycloudflare.com/api'; 
 
 async function loadPosts() {
     try {
@@ -12,27 +11,26 @@ async function loadPosts() {
             const card = document.createElement('div');
             card.className = 'project-card';
             
-            const formattedLikes = formatNumber(post.likes);
-            const formattedViews = formatNumber(post.views);
+            // Clean up fallback variables in case the backend sends undefined data
+            const formattedLikes = formatNumber(post.likes || 0);
+            const formattedViews = formatNumber(post.views || 0);
+            const poster = post.posterName || 'Anonymous';
+            const caption = post.caption || '';
+            const title = post.title || 'Untitled Project';
+            const author = post.author || 'Unknown';
 
             card.innerHTML = `
-                <div class="post-caption-area">
-                    <div class="poster-info">
-                        <i class="fa-solid fa-circle-user"></i>
-                        ${post.posterName}
-                    </div>
-                    <p class="post-text">${post.caption}</p>
+                <div class="card-header">
+                    <i class="fa-solid fa-circle-user"></i>
+                    ${poster} shared a project
                 </div>
                 
-                <div class="banner-container">
-                    <img src="${post.thumbnail}" alt="Thumbnail" class="banner-thumb" onerror="this.src='https://uploads.scratch.mit.edu/get_image/project/1_480x360.png'">
-                    <div class="banner-overlay">
-                        <div class="badge"><i class="fa-solid fa-star"></i> Featured Project</div>
-                        <div class="banner-text">
-                            <h2><a href="https://scratch.mit.edu/projects/${post.scratchId}" target="_blank">${post.title}</a></h2>
-                            <div class="author">Created by ${post.author}</div>
-                        </div>
-                    </div>
+                <img src="${post.thumbnail}" alt="Thumbnail" class="project-thumb" onerror="this.src='https://uploads.scratch.mit.edu/get_image/project/1_480x360.png'">
+                
+                <div class="card-body">
+                    <h2 class="card-title"><a href="https://scratch.mit.edu/projects/${post.scratchId}" target="_blank">${title}</a></h2>
+                    <div class="card-author">Created by ${author}</div>
+                    <p class="card-caption">${caption}</p>
                 </div>
 
                 <div class="action-bar">
@@ -41,7 +39,7 @@ async function loadPosts() {
                         <span><i class="fa-solid fa-eye"></i> ${formattedViews}</span>
                     </div>
                     <button class="action-btn" onclick="likePost(${post.id}, this)">
-                        <i class="fa-solid fa-heart"></i> Like
+                        <i class="fa-regular fa-heart"></i> Like
                     </button>
                 </div>
             `;
@@ -89,7 +87,7 @@ async function submitPost() {
         console.error(err);
         alert("Server error connecting to API.");
     } finally {
-        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Post to Feed';
+        btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Post';
         btn.disabled = false;
     }
 }
@@ -100,9 +98,9 @@ async function likePost(id, btnElement) {
         const data = await res.json();
         document.getElementById(`likes-${id}`).innerText = formatNumber(data.likes);
         
-        // UI Interaction
         const icon = btnElement.querySelector('i');
-        icon.classList.add('loved');
+        icon.classList.remove('fa-regular');
+        icon.classList.add('fa-solid', 'loved');
         btnElement.style.color = '#f02849';
     } catch (error) {
         console.error('Error liking post:', error);
