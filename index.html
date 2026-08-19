@@ -14,26 +14,27 @@
             <p>Curate your Scratch universe.</p>
         </div>
         <div class="nav-icons">
-            <i class="fa-solid fa-house active"></i>
-            <i class="fa-solid fa-compass"></i>
-            <i class="fa-solid fa-bell"></i>
-            <i class="fa-solid fa-user"></i>
+            <i class="fa-solid fa-house active" onclick="alert('Home feed refreshed!')"></i>
+            <i class="fa-solid fa-compass" onclick="alert('Explore page coming soon!')"></i>
+            <i class="fa-solid fa-bell" onclick="alert('You have 0 new notifications.')"></i>
+            <i class="fa-solid fa-user" onclick="alert('Profile settings opening...')"></i>
         </div>
     </header>
 
     <main>
         <section class="compose-box">
             <div class="compose-header">
-                <i class="fa-solid fa-pen-to-square"></i>
-                <h3>Share a Project</h3>
+                <i class="fa-solid fa-pen-to-square"></i> Share a Project
             </div>
             <div class="compose-body">
-                <input type="text" id="post-username" placeholder="Your Display Name" class="minimal-input">
-                <input type="text" id="scratch-input" placeholder="Scratch Project URL or ID" class="minimal-input">
+                <div class="input-row">
+                    <input type="text" id="post-username" placeholder="Your Display Name" class="minimal-input">
+                    <input type="text" id="scratch-input" placeholder="Scratch Project URL or ID" class="minimal-input">
+                </div>
                 <textarea id="post-caption" placeholder="Why are you sharing this? Add a caption..." class="minimal-textarea"></textarea>
             </div>
             <div class="compose-footer">
-                <button onclick="submitPost()" class="post-btn"><i class="fa-solid fa-paper-plane"></i> Post to Feed</button>
+                <button onclick="submitPost()" class="post-btn"><i class="fa-solid fa-paper-plane"></i> Post</button>
             </div>
         </section>
         
