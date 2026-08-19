@@ -11,13 +11,21 @@ async function loadPosts() {
             const card = document.createElement('div');
             card.className = 'project-card';
             
-            // Clean up fallback variables in case the backend sends undefined data
-            const formattedLikes = formatNumber(post.likes || 0);
-            const formattedViews = formatNumber(post.views || 0);
+            const formattedLikes = formatNumber(post.blockbuzz_likes || 0);
             const poster = post.posterName || 'Anonymous';
             const caption = post.caption || '';
             const title = post.title || 'Untitled Project';
             const author = post.author || 'Unknown';
+
+            // Build comment list HTML
+            let commentsHtml = '';
+            if (post.comments && post.comments.length > 0) {
+                post.comments.forEach(c => {
+                    commentsHtml += `<div class="comment-item"><strong>${c.commenterName}:</strong> ${c.text}</div>`;
+                });
+            } else {
+                commentsHtml = `<div class="no-comments">No BlockBuzz comments yet. Be the first!</div>`;
+            }
 
             card.innerHTML = `
                 <div class="card-header">
@@ -35,12 +43,22 @@ async function loadPosts() {
 
                 <div class="action-bar">
                     <div class="action-stats">
-                        <span><i class="fa-solid fa-heart" style="color:#f02849;"></i> <span id="likes-${post.id}">${formattedLikes}</span></span>
-                        <span><i class="fa-solid fa-eye"></i> ${formattedViews}</span>
+                        <span><i class="fa-solid fa-heart" style="color:#f02849;"></i> <span id="likes-${post.id}">${formattedLikes}</span> BlockBuzz Loves</span>
                     </div>
                     <button class="action-btn" onclick="likePost(${post.id}, this)">
-                        <i class="fa-regular fa-heart"></i> Like
+                        <i class="fa-regular fa-heart"></i> Love
                     </button>
+                </div>
+
+                <div class="comments-section">
+                    <div class="comments-list" id="comments-list-${post.id}">
+                        ${commentsHtml}
+                    </div>
+                    <div class="comment-input-row">
+                        <input type="text" id="comment-name-${post.id}" placeholder="Name" class="comment-name-input">
+                        <input type="text" id="comment-text-${post.id}" placeholder="Write a BlockBuzz comment..." class="comment-field" onkeypress="handleCommentKey(event, ${post.id})">
+                        <button onclick="submitComment(${post.id})" class="comment-submit-btn">Post</button>
+                    </div>
                 </div>
             `;
             feed.appendChild(card);
@@ -81,6 +99,7 @@ async function submitPost() {
         } else {
             scratchInput.value = '';
             captionInput.value = '';
+            userInput.value = '';
             loadPosts();
         }
     } catch (err) {
@@ -104,6 +123,37 @@ async function likePost(id, btnElement) {
         btnElement.style.color = '#f02849';
     } catch (error) {
         console.error('Error liking post:', error);
+    }
+}
+
+async function submitComment(postId) {
+    const nameInput = document.getElementById(`comment-name-${postId}`);
+    const textInput = document.getElementById(`comment-text-${postId}`);
+
+    if (!textInput.value.trim()) return;
+
+    try {
+        const res = await fetch(`${API_URL}/posts/${postId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                commenterName: nameInput.value,
+                text: textInput.value
+            })
+        });
+
+        if (res.ok) {
+            textInput.value = '';
+            loadPosts(); // Refresh feed to display the new comment
+        }
+    } catch (err) {
+        console.error('Error posting comment:', err);
+    }
+}
+
+function handleCommentKey(event, postId) {
+    if (event.key === 'Enter') {
+        submitComment(postId);
     }
 }
 
