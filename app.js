@@ -1,4 +1,4 @@
-const API_URL = 'http://172.16.0.67:3000/api'; 
+const API_URL = 'https://expenditures-guardian-episodes-ballet.trycloudflare.com/api'; 
 
 async function loadPosts() {
     try {
