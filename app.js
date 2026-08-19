@@ -1,4 +1,4 @@
-const API_URL = 'https://desired-meter-pct-athletic.trycloudflare.com/api'; 
+const API_URL = 'https://pitch-delivers-avoiding-bloom.trycloudflare.com/api'; 
 
 async function loadPosts() {
     try {
