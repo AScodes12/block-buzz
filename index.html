@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BLOCK BUZZ</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">
+            <h1>BLOCK BUZZ</h1>
+            <p>CREATE. SHARE. PLAY. REMIX.</p>
+        </div>
+        <div class="nav-icons">
+            <i class="fas fa-bell"></i>
+            <i class="fas fa-user-circle"></i>
+            <i class="fas fa-search"></i>
+        </div>
+    </header>
+
+    <main>
+        <section class="create-post-section">
+            <h3>Share a New Project</h3>
+            <input type="text" id="post-title" placeholder="Project Title...">
+            <input type="text" id="post-desc" placeholder="Describe your project (Safe words only!)...">
+            <button onclick="submitPost()">Post to Feed</button>
+        </section>
+        
+        <section id="feed" class="feed"></section>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
