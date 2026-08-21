@@ -2,6 +2,7 @@
    FRONTEND APPLICATION LOGIC (XSS SAFE)
    ========================================================================== */
 
+const API_BASE_URL = 'https://regional-personally-acting-surgical.trycloudflare.com';
 let currentUser = null;
 
 function escapeHTML(str) {
