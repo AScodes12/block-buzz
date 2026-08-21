@@ -15,7 +15,7 @@
         body { background-color: var(--bg-color); color: var(--text-primary); line-height: 1.5; padding-bottom: 50px; }
 
         header { position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border-color); }
-        .header-container { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+        .header-container { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; flex-wrap: wrap; gap: 10px; }
         .logo { font-weight: 800; font-size: 1.25rem; cursor: pointer; color: var(--accent-color); }
 
         nav { display: flex; gap: 4px; overflow-x: auto; padding-bottom: 2px; }
@@ -41,7 +41,6 @@
         .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
         .project-thumb { width: 100%; aspect-ratio: 4/3; object-fit: cover; border-radius: var(--radius-md); margin: 10px 0; }
 
-        /* Modal Styles */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
         .modal-box { background: var(--card-bg); padding: 24px; border-radius: var(--radius-lg); width: 90%; max-width: 400px; text-align: center; }
     </style>
@@ -58,7 +57,10 @@
                 <button class="nav-link" id="nav-studios" onclick="switchTab('studios')">Studios</button>
                 <button class="nav-link" id="nav-account" onclick="switchTab('account')">Profile</button>
             </nav>
-            <div id="auth-container" style="display: flex; align-items: center; gap: 12px;"></div>
+            <!-- Guaranteed Login Button Container -->
+            <div id="auth-container" style="display: flex; align-items: center; gap: 12px;">
+                <button onclick="startVerificationFlow()" class="btn">Log In</button>
+            </div>
         </div>
     </header>
 
@@ -69,7 +71,7 @@
                 <div class="input-group">
                     <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID...">
                     <textarea id="post-caption" rows="2" placeholder="Write a short caption..."></textarea>
-                    <div style="text-align: right;"><button onclick="submitPost()" class="btn">Post (+10 Coins)</button></div>
+                    <div style="text-align: right;"><button onclick="submitPost()" class="btn">Post</button></div>
                 </div>
             </div>
             <div id="feed"></div>
@@ -88,19 +90,25 @@
             </div>
         </section>
 
+        <!-- Scratch Contest Advertising Section -->
         <section id="contests-section" class="tab-content">
             <div class="card">
-                <h2>Active Contests</h2>
-                <p style="color:var(--text-secondary);">Participate in community events to win massive coin prizes!</p>
-                <div id="contests-list" class="grid-list"></div>
+                <h3 style="margin-bottom: 10px;">Advertise Your Scratch Contest</h3>
+                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size:14px;">Running a contest or game jam on Scratch? Share it here!</p>
+                <div class="input-group">
+                    <input type="text" id="contest-input" placeholder="Paste Contest Project or Studio URL/ID...">
+                    <textarea id="contest-desc" rows="2" placeholder="Describe the rules or prizes..."></textarea>
+                    <div style="text-align: right;"><button onclick="submitContest()" class="btn">Advertise Contest (+5 Coins)</button></div>
+                </div>
             </div>
+            <div id="contests-feed"></div>
         </section>
 
         <!-- Scratch Studio Advertising Section -->
         <section id="studios-section" class="tab-content">
             <div class="card">
                 <h3 style="margin-bottom: 10px;">Advertise Your Scratch Studio</h3>
-                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size:14px;">Share your Scratch studio with the community to get more curators and projects!</p>
+                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size:14px;">Share your Scratch studio with the community to get more curators!</p>
                 <div class="input-group">
                     <input type="text" id="studio-input" placeholder="Paste Scratch Studio URL or ID...">
                     <textarea id="studio-desc" rows="2" placeholder="Why should people join your studio?"></textarea>
