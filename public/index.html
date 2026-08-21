@@ -21,7 +21,6 @@
         body { background-color: var(--bg-main); color: var(--text); min-height: 100vh; }
         .hidden { display: none !important; }
         .mt-1 { margin-top: 15px; }
-        .mt-2 { margin-top: 25px; }
         .w-100 { width: 100%; }
 
         /* Navigation */
@@ -66,7 +65,6 @@
 
         /* Profile & Shop */
         .profile-header-card { display: flex; align-items: center; gap: 20px; }
-        .avatar { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--border); object-fit: cover; }
         .badge-container { display: flex; gap: 6px; margin-top: 8px; }
         code { background: var(--bg-ter); padding: 10px; display: block; text-align: center; font-size: 15px; border-radius: 6px; border: 1px solid var(--border); margin-top: 10px; font-weight: 600; color: var(--accent); }
         .shop-item { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 15px; }
@@ -211,163 +209,7 @@
         </div>
     </section>
 
-    <!-- SCRIPT & ROUTER -->
-    <script type="module">
-        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
-
-        // Supabase configuration
-        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-        // State Management
-        let currentUser = {
-            id: 'demo-user',
-            username: 'ScratchDev',
-            coins: 150,
-            color: '#2563eb',
-            badges: ['Verified'],
-            referral_code: 'REF-8392'
-        };
-
-        const pages = ['home', 'create', 'shop', 'profile', 'admin'];
-
-        // Initializer
-        document.addEventListener('DOMContentLoaded', () => {
-            setupRouter();
-            updateUI();
-            setupEvents();
-            renderFeed();
-        });
-
-        // Router handling hash changes (#home, #create, etc.)
-        function setupRouter() {
-            window.addEventListener('hashchange', handleRoute);
-            handleRoute();
-        }
-
-        function handleRoute() {
-            let hash = window.location.hash.replace('#', '') || 'home';
-            if (!pages.includes(hash)) hash = 'home';
-
-            pages.forEach(p => {
-                const el = document.getElementById(`page-${p}`);
-                const nav = document.getElementById(`nav-${p}`);
-                if (el) el.classList.toggle('hidden', p !== hash);
-                if (nav) nav.classList.toggle('active', p === hash);
-            });
-
-            if (hash === 'profile') renderProfile();
-        }
-
-        // Global State Updates
-        function updateUI() {
-            const coinDisplays = document.querySelectorAll('#user-coins-display');
-            coinDisplays.forEach(el => el.textContent = currentUser ? currentUser.coins : 0);
-
-            const authBtn = document.getElementById('auth-btn');
-            if (authBtn) {
-                authBtn.textContent = currentUser ? 'Profile' : 'Login';
-                authBtn.onclick = () => window.location.hash = 'profile';
-            }
-        }
-
-        // Action Handlers
-        function setupEvents() {
-            // Post creation form
-            document.getElementById('create-post-form').addEventListener('submit', (e) => {
-                e.preventDefault();
-                const projectId = document.getElementById('project-id').value;
-                const caption = document.getElementById('caption').value;
-
-                alert(`Published project #${projectId}!`);
-                window.location.hash = 'home';
-                renderFeed();
-            });
-
-            // Shop unlocks
-            document.getElementById('btn-buy-crimson').onclick = () => purchase('color', '#dc2626', 50);
-            document.getElementById('btn-buy-amber').onclick = () => purchase('color', '#d97706', 50);
-            document.getElementById('btn-buy-verified').onclick = () => purchase('badge', 'Verified', 100);
-            document.getElementById('btn-buy-bughunter').onclick = () => purchase('badge', 'Bug Hunter', 100);
-
-            // Auth simulation
-            document.getElementById('login-form').addEventListener('submit', (e) => {
-                e.preventDefault();
-                const username = document.getElementById('login-username').value;
-                currentUser = { id: 'u-' + Date.now(), username, coins: 50, color: '#0f172a', badges: [], referral_code: 'REF-' + Math.floor(Math.random()*9000) };
-                updateUI();
-                renderProfile();
-            });
-
-            document.getElementById('logout-btn').onclick = () => {
-                currentUser = null;
-                updateUI();
-                renderProfile();
-            };
-        }
-
-        function purchase(type, value, price) {
-            if (!currentUser) return alert('Please login first!');
-            if (currentUser.coins < price) return alert('Not enough coins!');
-
-            currentUser.coins -= price;
-            if (type === 'color') currentUser.color = value;
-            if (type === 'badge' && !currentUser.badges.includes(value)) currentUser.badges.push(value);
-
-            alert('Purchase successful!');
-            updateUI();
-            renderProfile();
-        }
-
-        // Data Renderers
-        function renderFeed() {
-            const feed = document.getElementById('posts-container');
-            const samplePosts = [
-                { id: 1, title: 'Platformer v2.0', author: 'ScratchDev', color: currentUser?.color || '#2563eb', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' },
-                { id: 2, title: '3D Engine Demo', author: 'GamerX', color: '#0f172a', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' }
-            ];
-
-            feed.innerHTML = samplePosts.map(p => `
-                <div class="post-card">
-                    <img src="${p.thumbnail}" alt="Thumbnail">
-                    <div class="post-info">
-                        <div class="post-title">${p.title}</div>
-                        <div class="post-author" style="color: ${p.color}">${p.author}</div>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        function renderProfile() {
-            const loggedInView = document.getElementById('profile-logged-in');
-            const loggedOutView = document.getElementById('profile-logged-out');
-
-            if (!currentUser) {
-                loggedInView.classList.add('hidden');
-                loggedOutView.classList.remove('hidden');
-                return;
-            }
-
-            loggedInView.classList.remove('hidden');
-            loggedOutView.classList.add('hidden');
-
-            const nameEl = document.getElementById('profile-username');
-            nameEl.textContent = currentUser.username;
-            nameEl.style.color = currentUser.color;
-
-            document.getElementById('referral-code').textContent = currentUser.referral_code;
-            document.getElementById('profile-badges').innerHTML = currentUser.badges.map(b => `<span class="badge">${b}</span>`).join('');
-            
-            document.getElementById('user-posts-container').innerHTML = `
-                <div class="post-card">
-                    <img src="https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png" alt="Thumbnail">
-                    <div class="post-info">
-                        <div class="post-title">Platformer v2.0</div>
-                    </div>
-                </div>
-            `;
-        }
-    </script>
+    <!-- LINK EXTERNAL JS -->
+    <script type="module" src="app.js"></script>
 </body>
 </html>
