@@ -6,7 +6,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_bM9jO-5AWPtyF_ME6gbKug_-FN56QxP';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- APP STATE ---
-let currentUser = null; // Starts completely logged out (no demo user)
+let currentUser = null;
 let pendingUsername = '';
 let verificationCode = '';
 
@@ -21,31 +21,24 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPosts();
 });
 
-// --- WORKING NAVIGATION HANDLER ---
+// --- NAVIGATION ---
 function setupNavigation() {
     const navButtons = document.querySelectorAll('.nav-link');
-    
     navButtons.forEach(btn => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             const targetPage = btn.getAttribute('data-target');
-            if (targetPage) {
-                switchPage(targetPage);
-            }
+            if (targetPage) switchPage(targetPage);
         });
     });
 }
 
 function switchPage(pageId) {
     window.location.hash = pageId;
-
     pages.forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
-        if (pageEl) {
-            pageEl.classList.toggle('hidden', p !== pageId);
-        }
+        if (pageEl) pageEl.classList.toggle('hidden', p !== pageId);
     });
-
     document.querySelectorAll('.nav-link').forEach(btn => {
         if (btn.getAttribute('data-target') === pageId) {
             btn.classList.add('active');
@@ -53,52 +46,40 @@ function switchPage(pageId) {
             btn.classList.remove('active');
         }
     });
-
     if (pageId === 'profile') renderProfile();
 }
 
-// --- DATA FETCHING & RENDERING ---
+// --- DATA FETCHING ---
 async function fetchPosts() {
     const container = document.getElementById('posts-container');
     if (!container) return;
 
-    let postsList = [];
     try {
-        const { data: posts } = await supabase
+        const { data: posts, error } = await supabase
             .from('posts')
             .select('*')
             .order('created_at', { ascending: false });
 
+        if (error) throw error;
+
         if (posts && posts.length > 0) {
-            postsList = posts;
+            container.innerHTML = posts.map(p => `
+                <article class="post-card">
+                    ${p.type ? `<span class="post-tag">${p.type}</span>` : ''}
+                    <div class="post-header">
+                        <span class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</span>
+                    </div>
+                    <p class="post-text">${p.text}</p>
+                    ${p.project_link ? `<a href="${p.project_link}" target="_blank" class="btn primary w-100">Play Scratch Project</a>` : ''}
+                </article>
+            `).join('');
+            return;
         }
     } catch (err) {
-        console.log('Supabase connection note: using local fallback data.');
+        console.log('Database notice: Ensure your "posts" table is created in Supabase.');
     }
 
-    if (postsList.length === 0) {
-        postsList = [
-            {
-                id: '1',
-                project_link: 'https://scratch.mit.edu/projects/10421312/',
-                text: 'Check out this sample Scratch project link on our feed!',
-                author: 'System',
-                author_color: '#2563eb',
-                type: 'General'
-            }
-        ];
-    }
-
-    container.innerHTML = postsList.map(p => `
-        <article class="post-card">
-            ${p.type ? `<span class="post-tag">${p.type}</span>` : ''}
-            <div class="post-header">
-                <span class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</span>
-            </div>
-            <p class="post-text">${p.text}</p>
-            ${p.project_link ? `<a href="${p.project_link}" target="_blank" class="btn primary w-100">Play Scratch Project</a>` : ''}
-        </article>
-    `).join('');
+    container.innerHTML = `<p class="text-center" style="color: gray; padding: 20px;">No posts yet. Be the first to create one!</p>`;
 }
 
 function renderProfile() {
@@ -141,9 +122,8 @@ function updateUI() {
     }
 }
 
-// --- EVENT HANDLERS & SCRATCH VERIFICATION ---
+// --- EVENTS & VERIFICATION ---
 function setupEvents() {
-    // Step 1: Submit Username & Generate Code
     const usernameForm = document.getElementById('username-form');
     if (usernameForm) {
         usernameForm.addEventListener('submit', (e) => {
@@ -158,7 +138,6 @@ function setupEvents() {
         });
     }
 
-    // Back button for verification view
     const backBtn = document.getElementById('btn-back-username');
     if (backBtn) {
         backBtn.onclick = () => {
@@ -167,33 +146,21 @@ function setupEvents() {
         };
     }
 
-    // Step 2: Check Scratch Profile Bio via API
     const verifyBioBtn = document.getElementById('btn-verify-bio');
     if (verifyBioBtn) {
         verifyBioBtn.onclick = async () => {
             verifyBioBtn.textContent = 'Checking profile...';
             
             try {
-                // Adding a timestamp parameter forces the proxy to bypass cache and fetch fresh data
-                const targetUrl = `https://api.scratch.mit.edu/users/${pendingUsername}?t=${Date.now()}`;
-                const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
+                // Using an alternative proxy endpoint route to avoid 403 blocks
+                const targetUrl = `https://api.scratch.mit.edu/users/${pendingUsername}`;
+                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
                 
                 const response = await fetch(proxyUrl);
-                const data = await response.json();
+                if (!response.ok) throw new Error('User not found or proxy blocked');
                 
-                if (!data.contents) {
-                    throw new Error('User not found');
-                }
-
-                const userInfo = JSON.parse(data.contents);
-                
-                // Debugging: Check your browser's F12 Console to see what bio text was grabbed
-                console.log("Fetched Scratch User Data:", userInfo);
-
+                const userInfo = await response.json();
                 const bio = userInfo.profile ? (userInfo.profile.bio || '') + ' ' + (userInfo.profile.status || '') : '';
-
-                console.log("Combined Bio/Status text found:", bio);
-                console.log("Looking for code:", verificationCode);
 
                 if (bio.includes(verificationCode)) {
                     alert('Verification successful! Welcome, ' + pendingUsername);
@@ -215,10 +182,10 @@ function setupEvents() {
                     renderProfile();
                     switchPage('profile');
                 } else {
-                    alert(`Code "${verificationCode}" not found in your Scratch bio yet. Make sure you hit "Save" on your Scratch profile and wait a few seconds!`);
+                    alert(`Code "${verificationCode}" not found in your Scratch bio yet. Save your bio on Scratch and try again in a few seconds.`);
                 }
             } catch (err) {
-                alert('Could not verify user. Make sure the Scratch username is correct.');
+                alert('Could not reach Scratch profile. Please check that your Scratch username is correct.');
                 console.error(err);
             } finally {
                 verifyBioBtn.textContent = "I've put it in my bio, Verify Me!";
@@ -226,52 +193,39 @@ function setupEvents() {
         };
     }
 
-    // Create Post Form Submission
+    // Forms and actions
     const postForm = document.getElementById('create-post-form');
     if (postForm) {
         postForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUser) return alert('Please log in first!');
 
-            const project_link = document.getElementById('post-project-link').value;
-            const text = document.getElementById('post-text').value;
-
-            const newPost = {
-                project_link,
-                text,
+            await supabase.from('posts').insert([{
+                project_link: document.getElementById('post-project-link').value,
+                text: document.getElementById('post-text').value,
                 author: currentUser.username,
                 author_color: currentUser.color,
                 type: 'Post'
-            };
-
-            try {
-                await supabase.from('posts').insert([newPost]);
-            } catch (err) {}
+            }]);
 
             postForm.reset();
             fetchPosts();
         });
     }
 
-    // Studio Form Submission
     const studioForm = document.getElementById('studio-ad-form');
     if (studioForm) {
         studioForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUser) return alert('Please log in first!');
 
-            const link = document.getElementById('studio-link').value;
-            const desc = document.getElementById('studio-desc').value;
-
-            try {
-                await supabase.from('posts').insert([{
-                    project_link: link,
-                    text: desc,
-                    author: currentUser.username,
-                    author_color: currentUser.color,
-                    type: 'Studio Ad'
-                }]);
-            } catch (err) {}
+            await supabase.from('posts').insert([{
+                project_link: document.getElementById('studio-link').value,
+                text: document.getElementById('studio-desc').value,
+                author: currentUser.username,
+                author_color: currentUser.color,
+                type: 'Studio Ad'
+            }]);
 
             alert('Studio Ad Published!');
             studioForm.reset();
@@ -280,25 +234,19 @@ function setupEvents() {
         });
     }
 
-    // Contest Form Submission
     const contestForm = document.getElementById('contest-form');
     if (contestForm) {
         contestForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUser) return alert('Please log in first!');
 
-            const link = document.getElementById('contest-link').value;
-            const rules = document.getElementById('contest-rules').value;
-
-            try {
-                await supabase.from('posts').insert([{
-                    project_link: link,
-                    text: rules,
-                    author: currentUser.username,
-                    author_color: currentUser.color,
-                    type: 'Contest'
-                }]);
-            } catch (err) {}
+            await supabase.from('posts').insert([{
+                project_link: document.getElementById('contest-link').value,
+                text: document.getElementById('contest-rules').value,
+                author: currentUser.username,
+                author_color: currentUser.color,
+                type: 'Contest'
+            }]);
 
             alert('Contest Created!');
             contestForm.reset();
@@ -307,17 +255,6 @@ function setupEvents() {
         });
     }
 
-    // Shop Purchasing
-    const crimsonBtn = document.getElementById('btn-buy-crimson');
-    if (crimsonBtn) crimsonBtn.onclick = () => purchase('color', '#dc2626', 50);
-
-    const amberBtn = document.getElementById('btn-buy-amber');
-    if (amberBtn) amberBtn.onclick = () => purchase('color', '#d97706', 50);
-
-    const verifiedBtn = document.getElementById('btn-buy-verified');
-    if (verifiedBtn) verifiedBtn.onclick = () => purchase('badge', 'Verified', 100);
-
-    // Logout Button
     const logoutBtn = document.getElementById('logout-btn');
     if (logoutBtn) {
         logoutBtn.onclick = () => {
@@ -326,25 +263,4 @@ function setupEvents() {
             renderProfile();
         };
     }
-}
-
-async function purchase(type, value, price) {
-    if (!currentUser) return alert('Please login first!');
-    if (currentUser.coins < price) return alert('Not enough coins!');
-
-    currentUser.coins -= price;
-    if (type === 'color') currentUser.color = value;
-    if (type === 'badge' && !currentUser.badges.includes(value)) currentUser.badges.push(value);
-
-    try {
-        await supabase.from('users').update({
-            coins: currentUser.coins,
-            color: currentUser.color,
-            badges: currentUser.badges
-        }).eq('username', currentUser.username);
-    } catch (err) {}
-
-    alert('Purchase successful!');
-    updateUI();
-    renderProfile();
 }
