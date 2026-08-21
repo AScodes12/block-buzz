@@ -1,5 +1,5 @@
 /* ==========================================================================
-   FRONTEND APPLICATION LOGIC (XSS SAFE)
+   FRONTEND APPLICATION LOGIC (CONNECTED TO CLOUDFLARE TUNNEL)
    ========================================================================== */
 
 const API_BASE_URL = 'https://regional-personally-acting-surgical.trycloudflare.com';
@@ -20,13 +20,16 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function checkSession() {
-    fetch('/api/auth/me')
-        .then(res => res.json())
-        .then(data => {
-            currentUser = data.user ? data.user.username : null;
-            updateAuthUI();
-            loadPosts();
-        });
+    fetch(`${API_BASE_URL}/api/auth/me`, {
+        credentials: 'include'
+    })
+    .then(res => res.json())
+    .then(data => {
+        currentUser = data.user ? data.user.username : null;
+        updateAuthUI();
+        loadPosts();
+    })
+    .catch(err => console.error('Error checking session:', err));
 }
 
 function updateAuthUI() {
@@ -50,9 +53,10 @@ async function startVerificationFlow() {
     if (!username || !username.trim()) return;
 
     try {
-        const res = await fetch('/api/auth/register-request', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/register-request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ username: username.trim() })
         });
         const data = await res.json();
@@ -64,15 +68,16 @@ async function startVerificationFlow() {
 
         verifyAccount(username.trim());
     } catch (e) {
-        alert('Network error.');
+        alert('Network error connecting to backend.');
     }
 }
 
 async function verifyAccount(username) {
     try {
-        const res = await fetch('/api/auth/verify', {
+        const res = await fetch(`${API_BASE_URL}/api/auth/verify`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ username })
         });
         const data = await res.json();
@@ -89,7 +94,10 @@ async function verifyAccount(username) {
 }
 
 async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    await fetch(`${API_BASE_URL}/api/auth/logout`, { 
+        method: 'POST',
+        credentials: 'include'
+    });
     currentUser = null;
     updateAuthUI();
     loadPosts();
@@ -110,7 +118,9 @@ async function loadPosts() {
     if (!feed) return;
 
     try {
-        const res = await fetch('/api/posts');
+        const res = await fetch(`${API_BASE_URL}/api/posts`, {
+            credentials: 'include'
+        });
         const posts = await res.json();
 
         feed.innerHTML = '';
@@ -149,9 +159,10 @@ async function submitPost() {
     const scratchInput = document.getElementById('scratch-input').value;
     const caption = document.getElementById('post-caption').value;
 
-    const res = await fetch('/api/posts', {
+    const res = await fetch(`${API_BASE_URL}/api/posts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ scratchInput, caption })
     });
 
@@ -174,7 +185,9 @@ async function loadAccountPage() {
         return;
     }
 
-    const res = await fetch(`/api/users/${encodeURIComponent(currentUser)}`);
+    const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(currentUser)}`, {
+        credentials: 'include'
+    });
     const data = await res.json();
 
     container.innerHTML = `
