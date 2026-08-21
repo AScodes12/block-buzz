@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coin Shop</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">My App</div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="create.html">Post Project</a>
+            <a href="shop.html">Shop</a>
+            <a href="profile.html">Profile</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <h1>The Shop</h1>
+        <div class="user-coins">
+            <h2>Your Balance: <span id="coin-balance">0</span> Coins 🪙</h2>
+        </div>
+
+        <div class="shop-grid">
+            <!-- Username Colors -->
+            <div class="shop-item">
+                <h3>Neon Green Username</h3>
+                <p>Cost: 500 Coins</p>
+                <button onclick="buyColor('#39ff14', 500)">Buy Color</button>
+            </div>
+            
+            <!-- Badges -->
+            <div class="shop-item">
+                <h3>"Pro Coder" Badge 💻</h3>
+                <p>Cost: 1000 Coins</p>
+                <button onclick="buyBadge('Pro Coder', 1000)">Buy Badge</button>
+            </div>
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
