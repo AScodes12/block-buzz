@@ -1,5 +1,5 @@
 // Relative API URL works because server.js serves frontend statically
-const API_BASE_URL = ''; 
+const API_BASE_URL = 'https://block-buzz.onrender.com'; 
 let currentUser = null;
 let activeVerificationData = null;
 
