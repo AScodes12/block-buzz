@@ -84,12 +84,12 @@ app.post('/api/auth/verify', authLimiter, async (req, res) => {
         let { data: existingUser } = await supabase.from('users').select('*').eq('username', scratchData.username).single();
 
         if (!existingUser) {
-            let coins = 0; // NO SIGN UP BONUS
+            let coins = 0; 
             if (pending.referralCode) {
                 const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
                 if (referrer) {
                     await supabase.from('users').update({ coins: referrer.coins + 10 }).eq('username', referrer.username);
-                    coins += 10; // REFERRAL BONUS
+                    coins += 10; // Referral bonus = 10 coins
                 }
             }
 
@@ -112,6 +112,13 @@ app.post('/api/auth/verify', authLimiter, async (req, res) => {
     } catch (err) {
         res.status(500).json({ error: 'Verification error.' });
     }
+});
+
+app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.clearCookie('connect.sid');
+        res.json({ success: true });
+    });
 });
 
 // --- POSTS, LIKES, & VIEWS ---
@@ -201,6 +208,24 @@ app.post('/api/posts/:id/comments', async (req, res) => {
     const newComment = { post_id: req.params.id, author: user.username, author_pfp: user.pfp, text };
     const { data } = await supabase.from('comments').insert([newComment]).select().single();
     res.json({ success: true, comment: data });
+});
+
+// --- STORE / SHOP ---
+app.post('/api/store/buy', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+    const { type, value, price } = req.body;
+    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
+    if (user.coins < price) return res.status(400).json({ error: 'Not enough coins.' });
+
+    let updates = { coins: user.coins - price };
+    if (type === 'color') updates.color = cleanInput(value);
+    if (type === 'badge') {
+        let badges = user.badges || [];
+        if (!badges.includes(value)) badges.push(cleanInput(value));
+        updates.badges = badges;
+    }
+    await supabase.from('users').update(updates).eq('username', user.username);
+    res.json({ success: true, coins: updates.coins });
 });
 
 // --- MODERATION ---
