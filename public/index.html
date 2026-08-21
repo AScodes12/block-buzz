@@ -4,114 +4,370 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlockBuzz</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --bg-main: #f8fafc;
+            --bg-sec: #ffffff;
+            --bg-ter: #f1f5f9;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --danger: #dc2626;
+            --border: #e2e8f0;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: var(--bg-main); color: var(--text); min-height: 100vh; }
+        .hidden { display: none !important; }
+        .mt-1 { margin-top: 15px; }
+        .mt-2 { margin-top: 25px; }
+        .w-100 { width: 100%; }
+
+        /* Navigation */
+        .navbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background-color: var(--bg-sec); border-bottom: 1px solid var(--border); }
+        .logo { font-size: 20px; font-weight: 700; color: var(--accent); letter-spacing: -0.5px; }
+        .nav-links { display: flex; gap: 20px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--text-muted); font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 6px; transition: color 0.2s; }
+        .nav-links a:hover, .nav-links a.active { color: var(--accent); }
+        .nav-auth { display: flex; align-items: center; gap: 12px; }
+
+        /* Buttons & Pills */
+        .btn { border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; }
+        .btn.primary { background-color: var(--accent); color: white; }
+        .btn.primary:hover { background-color: var(--accent-hover); }
+        .btn.secondary { background-color: var(--bg-ter); color: var(--text); border: 1px solid var(--border); }
+        .btn.secondary:hover { background-color: var(--border); }
+        .btn.danger { background-color: var(--danger); color: white; }
+        .btn.danger-outline { background: transparent; border: 1px solid var(--danger); color: var(--danger); }
+        .coin-pill { display: flex; align-items: center; gap: 6px; background: var(--bg-ter); padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; border: 1px solid var(--border); color: var(--accent); }
+
+        /* Layout Containers */
+        .container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+        .container.narrow { max-width: 500px; }
+        .panel { background: var(--bg-sec); border: 1px solid var(--border); border-radius: 10px; padding: 25px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+        .subtitle { color: var(--text-muted); font-size: 14px; margin-bottom: 20px; }
+
+        /* Forms & Inputs */
+        .input-group { margin-bottom: 15px; }
+        .input-group label { display: block; font-size: 13px; font-weight: 600; color: var(--text-muted); margin-bottom: 6px; }
+        input, textarea { width: 100%; padding: 10px 14px; background: var(--bg-sec); border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-size: 14px; }
+        input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+
+        /* Cards & Grids */
+        .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 20px; }
+        .post-card { background: var(--bg-sec); border-radius: 10px; overflow: hidden; border: 1px solid var(--border); transition: transform 0.2s, box-shadow 0.2s; }
+        .post-card:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(0,0,0,0.05); }
+        .post-card img { width: 100%; height: 150px; object-fit: cover; }
+        .post-info { padding: 15px; }
+        .post-title { font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+        .post-author { font-size: 13px; color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
+        .badge { background: var(--bg-ter); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+
+        /* Profile & Shop */
+        .profile-header-card { display: flex; align-items: center; gap: 20px; }
+        .avatar { width: 70px; height: 70px; border-radius: 50%; border: 2px solid var(--border); object-fit: cover; }
+        .badge-container { display: flex; gap: 6px; margin-top: 8px; }
+        code { background: var(--bg-ter); padding: 10px; display: block; text-align: center; font-size: 15px; border-radius: 6px; border: 1px solid var(--border); margin-top: 10px; font-weight: 600; color: var(--accent); }
+        .shop-item { display: flex; flex-direction: column; justify-content: space-between; align-items: flex-start; gap: 15px; }
+        .shop-item h3 { font-size: 15px; }
+        .shop-item .price { font-size: 13px; color: var(--text-muted); font-weight: 600; }
+        .shop-item button { width: 100%; }
+    </style>
 </head>
 <body>
-    <header class="navbar">
+
+    <!-- NAVBAR -->
+    <nav class="navbar">
         <div class="logo">BlockBuzz</div>
-        <div class="nav-actions">
-            <span id="user-coins" class="hidden">🪙 0</span>
-            <button id="profile-btn" class="btn secondary hidden" onclick="openProfileModal()">👤 Profile</button>
+        <div class="nav-links">
+            <a href="#home" id="nav-home" class="active">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                Home
+            </a>
+            <a href="#create" id="nav-create">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                Post
+            </a>
+            <a href="#shop" id="nav-shop">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                Shop
+            </a>
+            <a href="#profile" id="nav-profile">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                Profile
+            </a>
+        </div>
+        <div class="nav-auth">
+            <span class="coin-pill">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v12M15 9.5H9.5a1.5 1.5 0 0 0 0 3h5a1.5 1.5 0 0 1 0 3H9"></path></svg>
+                <span id="user-coins-display">0</span>
+            </span>
             <button id="auth-btn" class="btn primary">Login</button>
         </div>
-    </header>
+    </nav>
 
-    <main class="container">
-        <!-- Sidebar: Shop & Post Creator -->
-        <aside class="sidebar">
-            <div class="panel">
-                <h3>🛒 Discord-Style Shop</h3>
-                <div class="shop-item">
-                    <span>🔴 Red Name (50 🪙)</span>
-                    <button onclick="buyItem('color', '#dc2626', 50)">Buy</button>
-                </div>
-                <div class="shop-item">
-                    <span>🟡 Gold Name (50 🪙)</span>
-                    <button onclick="buyItem('color', '#ca8a04', 50)">Buy</button>
-                </div>
-                <div class="shop-item">
-                    <span>✔️ Verified Badge (100 🪙)</span>
-                    <button onclick="buyItem('badge', '✔️', 100)">Buy</button>
-                </div>
-                <div class="shop-item">
-                    <span>🐛 Bug Hunter (100 🪙)</span>
-                    <button onclick="buyItem('badge', '🐛', 100)">Buy</button>
+    <!-- PAGE 1: HOME FEED -->
+    <section id="page-home" class="page-view container">
+        <h1>Recent Projects</h1>
+        <div id="posts-container" class="grid mt-1">
+            <p>Loading projects...</p>
+        </div>
+    </section>
+
+    <!-- PAGE 2: POST PROJECT -->
+    <section id="page-create" class="page-view container narrow hidden">
+        <h1>Share Your Project</h1>
+        <form id="create-post-form" class="panel mt-1">
+            <div class="input-group">
+                <label for="project-id">Scratch Project ID / URL</label>
+                <input type="text" id="project-id" required placeholder="e.g. 123456789">
+            </div>
+            <div class="input-group">
+                <label for="caption">Caption</label>
+                <textarea id="caption" rows="4" required placeholder="Tell everyone about your project..."></textarea>
+            </div>
+            <button type="submit" class="btn primary w-100">Publish Project</button>
+        </form>
+    </section>
+
+    <!-- PAGE 3: SHOP -->
+    <section id="page-shop" class="page-view container hidden">
+        <h1>Customization Shop</h1>
+        <p class="subtitle">Spend your coins on custom username colors and badges.</p>
+
+        <div class="grid shop-grid">
+            <div class="panel shop-item">
+                <h3>Crimson Username</h3>
+                <p class="price">50 Coins</p>
+                <button id="btn-buy-crimson" class="btn secondary">Unlock</button>
+            </div>
+            <div class="panel shop-item">
+                <h3>Amber Username</h3>
+                <p class="price">50 Coins</p>
+                <button id="btn-buy-amber" class="btn secondary">Unlock</button>
+            </div>
+            <div class="panel shop-item">
+                <h3>Verified Badge</h3>
+                <p class="price">100 Coins</p>
+                <button id="btn-buy-verified" class="btn secondary">Unlock</button>
+            </div>
+            <div class="panel shop-item">
+                <h3>Bug Hunter Badge</h3>
+                <p class="price">100 Coins</p>
+                <button id="btn-buy-bughunter" class="btn secondary">Unlock</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- PAGE 4: PROFILE -->
+    <section id="page-profile" class="page-view container hidden">
+        <div id="profile-logged-in">
+            <div class="panel profile-header-card">
+                <div>
+                    <h1 id="profile-username">Scratcher</h1>
+                    <div id="profile-badges" class="badge-container"></div>
                 </div>
             </div>
+
+            <div class="panel mt-1">
+                <h3>Referral Program</h3>
+                <p class="subtitle" style="margin-bottom:0;">Invite friends using your unique code to earn 10 coins per signup!</p>
+                <code id="referral-code">REF-7892</code>
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:25px;">
+                <h2>My Projects</h2>
+                <button id="logout-btn" class="btn danger-outline">Logout</button>
+            </div>
+            <div id="user-posts-container" class="grid mt-1">
+                <p>Loading your projects...</p>
+            </div>
+        </div>
+
+        <div id="profile-logged-out" class="hidden">
+            <div class="container narrow">
+                <h1>Welcome Back</h1>
+                <form id="login-form" class="panel mt-1">
+                    <div class="input-group">
+                        <label>Scratch Username</label>
+                        <input type="text" id="login-username" required placeholder="Enter username">
+                    </div>
+                    <button type="submit" class="btn primary w-100">Login / Register</button>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- PAGE 5: ADMIN PANEL -->
+    <section id="page-admin" class="page-view container narrow hidden">
+        <h1>Moderation Controls</h1>
+        <div class="panel mt-1">
+            <h3>Delete Project</h3>
+            <div class="input-group mt-1">
+                <input type="text" id="delete-post-id" placeholder="Post ID">
+            </div>
+            <button id="admin-delete-btn" class="btn danger w-100">Delete Post</button>
+        </div>
+    </section>
+
+    <!-- SCRIPT & ROUTER -->
+    <script type="module">
+        import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+        // Supabase configuration
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // State Management
+        let currentUser = {
+            id: 'demo-user',
+            username: 'ScratchDev',
+            coins: 150,
+            color: '#2563eb',
+            badges: ['Verified'],
+            referral_code: 'REF-8392'
+        };
+
+        const pages = ['home', 'create', 'shop', 'profile', 'admin'];
+
+        // Initializer
+        document.addEventListener('DOMContentLoaded', () => {
+            setupRouter();
+            updateUI();
+            setupEvents();
+            renderFeed();
+        });
+
+        // Router handling hash changes (#home, #create, etc.)
+        function setupRouter() {
+            window.addEventListener('hashchange', handleRoute);
+            handleRoute();
+        }
+
+        function handleRoute() {
+            let hash = window.location.hash.replace('#', '') || 'home';
+            if (!pages.includes(hash)) hash = 'home';
+
+            pages.forEach(p => {
+                const el = document.getElementById(`page-${p}`);
+                const nav = document.getElementById(`nav-${p}`);
+                if (el) el.classList.toggle('hidden', p !== hash);
+                if (nav) nav.classList.toggle('active', p === hash);
+            });
+
+            if (hash === 'profile') renderProfile();
+        }
+
+        // Global State Updates
+        function updateUI() {
+            const coinDisplays = document.querySelectorAll('#user-coins-display');
+            coinDisplays.forEach(el => el.textContent = currentUser ? currentUser.coins : 0);
+
+            const authBtn = document.getElementById('auth-btn');
+            if (authBtn) {
+                authBtn.textContent = currentUser ? 'Profile' : 'Login';
+                authBtn.onclick = () => window.location.hash = 'profile';
+            }
+        }
+
+        // Action Handlers
+        function setupEvents() {
+            // Post creation form
+            document.getElementById('create-post-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const projectId = document.getElementById('project-id').value;
+                const caption = document.getElementById('caption').value;
+
+                alert(`Published project #${projectId}!`);
+                window.location.hash = 'home';
+                renderFeed();
+            });
+
+            // Shop unlocks
+            document.getElementById('btn-buy-crimson').onclick = () => purchase('color', '#dc2626', 50);
+            document.getElementById('btn-buy-amber').onclick = () => purchase('color', '#d97706', 50);
+            document.getElementById('btn-buy-verified').onclick = () => purchase('badge', 'Verified', 100);
+            document.getElementById('btn-buy-bughunter').onclick = () => purchase('badge', 'Bug Hunter', 100);
+
+            // Auth simulation
+            document.getElementById('login-form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('login-username').value;
+                currentUser = { id: 'u-' + Date.now(), username, coins: 50, color: '#0f172a', badges: [], referral_code: 'REF-' + Math.floor(Math.random()*9000) };
+                updateUI();
+                renderProfile();
+            });
+
+            document.getElementById('logout-btn').onclick = () => {
+                currentUser = null;
+                updateUI();
+                renderProfile();
+            };
+        }
+
+        function purchase(type, value, price) {
+            if (!currentUser) return alert('Please login first!');
+            if (currentUser.coins < price) return alert('Not enough coins!');
+
+            currentUser.coins -= price;
+            if (type === 'color') currentUser.color = value;
+            if (type === 'badge' && !currentUser.badges.includes(value)) currentUser.badges.push(value);
+
+            alert('Purchase successful!');
+            updateUI();
+            renderProfile();
+        }
+
+        // Data Renderers
+        function renderFeed() {
+            const feed = document.getElementById('posts-container');
+            const samplePosts = [
+                { id: 1, title: 'Platformer v2.0', author: 'ScratchDev', color: currentUser?.color || '#2563eb', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' },
+                { id: 2, title: '3D Engine Demo', author: 'GamerX', color: '#0f172a', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' }
+            ];
+
+            feed.innerHTML = samplePosts.map(p => `
+                <div class="post-card">
+                    <img src="${p.thumbnail}" alt="Thumbnail">
+                    <div class="post-info">
+                        <div class="post-title">${p.title}</div>
+                        <div class="post-author" style="color: ${p.color}">${p.author}</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderProfile() {
+            const loggedInView = document.getElementById('profile-logged-in');
+            const loggedOutView = document.getElementById('profile-logged-out');
+
+            if (!currentUser) {
+                loggedInView.classList.add('hidden');
+                loggedOutView.classList.remove('hidden');
+                return;
+            }
+
+            loggedInView.classList.remove('hidden');
+            loggedOutView.classList.add('hidden');
+
+            const nameEl = document.getElementById('profile-username');
+            nameEl.textContent = currentUser.username;
+            nameEl.style.color = currentUser.color;
+
+            document.getElementById('referral-code').textContent = currentUser.referral_code;
+            document.getElementById('profile-badges').innerHTML = currentUser.badges.map(b => `<span class="badge">${b}</span>`).join('');
             
-            <div class="panel hidden" id="post-creator">
-                <h3>📝 Share a Project</h3>
-                <input type="text" id="post-url" placeholder="Scratch Project ID/URL">
-                <input type="text" id="post-caption" placeholder="Caption this...">
-                <button onclick="submitPost()" class="btn primary w-100">Post</button>
-            </div>
-        </aside>
-
-        <!-- Main Feed -->
-        <section class="feed">
-            <h2>Recent Projects</h2>
-            <div id="posts-container" class="grid"></div>
-        </section>
-    </main>
-
-    <!-- OVERLAY MODALS -->
-    <div id="modal-overlay" class="hidden" onclick="closeModals(event)">
-        
-        <!-- Auth Modal -->
-        <div id="auth-modal" class="modal hidden">
-            <h2>Secure Login</h2>
-            <div id="auth-step-1">
-                <input type="text" id="auth-username" placeholder="Scratch Username">
-                <input type="text" id="auth-referral" placeholder="Referral Code (Optional)">
-                <button onclick="requestLogin()" class="btn primary">Get Code</button>
-            </div>
-            <div id="auth-step-2" class="hidden">
-                <p>Paste this code into your Scratch "About Me" to verify:</p>
-                <code id="verification-code-display"></code>
-                <button onclick="verifyLogin()" class="btn success mt-1">I pasted it, Verify!</button>
-            </div>
-        </div>
-
-        <!-- Profile Modal -->
-        <div id="profile-modal" class="modal hidden">
-            <div class="post-header">
-                <h2>Your Profile</h2>
-                <button class="close-btn" onclick="closeAllModals()">✖</button>
-            </div>
-            <div class="profile-content">
-                <p><strong>Username:</strong> <span id="prof-username"></span></p>
-                <p><strong>Referral Code:</strong> <span id="prof-ref"></span></p>
-                <p class="mt-1">Share your referral code with friends when they sign up to earn 10 coins!</p>
-            </div>
-        </div>
-
-        <!-- Post Detail Modal (Stats & Comments) -->
-        <div id="post-modal" class="modal large hidden">
-            <div class="post-header">
-                <h2 id="modal-title">Project Title</h2>
-                <button class="close-btn" onclick="closeAllModals()">✖</button>
-            </div>
-            <div class="post-split">
-                <div class="post-left">
-                    <img id="modal-img" src="" alt="Thumbnail">
-                    <div class="live-stats">
-                        <h4>Scratch Live Stats:</h4>
-                        <span id="scratch-loves">❤️ 0</span>
-                        <span id="scratch-faves">⭐ 0</span>
-                        <span id="scratch-remixes">🌀 0</span>
+            document.getElementById('user-posts-container').innerHTML = `
+                <div class="post-card">
+                    <img src="https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png" alt="Thumbnail">
+                    <div class="post-info">
+                        <div class="post-title">Platformer v2.0</div>
                     </div>
                 </div>
-                <div class="post-right">
-                    <div id="modal-comments" class="comments-box"></div>
-                    <div class="comment-input-area">
-                        <input type="text" id="comment-text" placeholder="Write a comment...">
-                        <button onclick="submitComment()" class="btn primary">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="app.js"></script>
+            `;
+        }
+    </script>
 </body>
 </html>
