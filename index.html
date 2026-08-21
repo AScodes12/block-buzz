@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlockBuzz - Secure Scratch Community</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --bg-color: #f8fafc;
@@ -28,8 +27,7 @@
         }
 
         .header-container { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
-        .logo { font-weight: 800; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .logo i { color: var(--accent-color); }
+        .logo { font-weight: 800; font-size: 1.25rem; cursor: pointer; color: var(--accent-color); }
 
         nav { display: flex; gap: 4px; }
         .nav-link { padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 14px; color: var(--text-secondary); background: none; border: none; cursor: pointer; }
@@ -50,22 +48,35 @@
         .btn {
             background-color: var(--accent-color); color: #fff; border: none; padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;
         }
+        .btn-outline {
+            background-color: transparent; color: var(--accent-color); border: 2px solid var(--accent-color); padding: 6px 14px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer;
+        }
 
         .avatar-wrapper { width: 36px; height: 36px; border-radius: 50%; overflow: hidden; background: #e2e8f0; }
         .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
         .project-thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius-md); margin: 10px 0; }
+
+        /* Modal Styles */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center;
+        }
+        .modal-box {
+            background: var(--card-bg); padding: 24px; border-radius: var(--radius-lg);
+            width: 90%; max-width: 400px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body>
 
     <header>
         <div class="header-container">
-            <div class="logo" onclick="switchTab('home')"><i class="fa-solid fa-cubes-stacked"></i> BlockBuzz</div>
+            <div class="logo" onclick="switchTab('home')">BlockBuzz</div>
             
             <nav>
-                <button class="nav-link active" id="nav-home" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
-                <button class="nav-link" id="nav-store" onclick="switchTab('store')"><i class="fa-solid fa-shop"></i> Store</button>
-                <button class="nav-link" id="nav-account" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Profile</button>
+                <button class="nav-link active" id="nav-home" onclick="switchTab('home')">Home</button>
+                <button class="nav-link" id="nav-store" onclick="switchTab('store')">Store</button>
+                <button class="nav-link" id="nav-account" onclick="switchTab('account')">Profile</button>
             </nav>
 
             <div id="auth-container" style="display: flex; align-items: center; gap: 12px;"></div>
@@ -73,10 +84,9 @@
     </header>
 
     <main>
-        <!-- Home Section -->
         <section id="home-section" class="tab-content" style="display: block;">
             <div class="create-card">
-                <h3 style="margin-bottom: 10px;"><i class="fa-solid fa-paper-plane" style="color:var(--accent-color);"></i> Share a Scratch Project</h3>
+                <h3 style="margin-bottom: 10px;">Share a Scratch Project</h3>
                 <div class="input-group">
                     <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID...">
                     <textarea id="post-caption" rows="2" placeholder="Write a short caption..."></textarea>
@@ -88,22 +98,32 @@
             <div id="feed"></div>
         </section>
 
-        <!-- Store Section -->
         <section id="store-section" class="tab-content">
             <div class="create-card">
-                <h3><i class="fa-solid fa-store" style="color:var(--accent-color);"></i> Name Color Store</h3>
+                <h3>Name Color Store</h3>
                 <p style="color:var(--text-secondary); margin-top: 4px; font-size:14px;">Purchase custom username colors for your post headers.</p>
-                <div id="store-items" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px;">
-                    <!-- Store items dynamically injected -->
-                </div>
+                <div id="store-items" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 16px;"></div>
             </div>
         </section>
 
-        <!-- Profile Section -->
         <section id="account-section" class="tab-content">
             <div id="account-profile-content"></div>
         </section>
     </main>
+
+    <!-- Verification Success Modal -->
+    <div id="verification-modal" class="modal-overlay">
+        <div class="modal-box">
+            <h2 style="margin-bottom: 12px;">Account Created! 🎉</h2>
+            <p style="margin-bottom: 16px; color: var(--text-secondary);">Your Scratch account has been securely verified and linked.</p>
+            
+            <div id="bonus-banner" style="display: none; background: #fef9c3; padding: 12px; border-radius: 8px; margin-bottom: 20px; color: #a16207; font-weight: bold; border: 1px solid #fde047;">
+                +10 Coins Referral Bonus Applied!
+            </div>
+            
+            <button onclick="closeModal()" class="btn" style="width: 100%;">Start Exploring</button>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
