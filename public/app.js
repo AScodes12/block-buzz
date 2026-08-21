@@ -174,7 +174,10 @@ function setupEvents() {
             verifyBioBtn.textContent = 'Checking profile...';
             
             try {
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://api.scratch.mit.edu/users/${pendingUsername}`)}`;
+                // Adding a timestamp parameter forces the proxy to bypass cache and fetch fresh data
+                const targetUrl = `https://api.scratch.mit.edu/users/${pendingUsername}?t=${Date.now()}`;
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                
                 const response = await fetch(proxyUrl);
                 const data = await response.json();
                 
@@ -183,7 +186,14 @@ function setupEvents() {
                 }
 
                 const userInfo = JSON.parse(data.contents);
-                const bio = (userInfo.profile.bio || '') + ' ' + (userInfo.profile.status || '');
+                
+                // Debugging: Check your browser's F12 Console to see what bio text was grabbed
+                console.log("Fetched Scratch User Data:", userInfo);
+
+                const bio = userInfo.profile ? (userInfo.profile.bio || '') + ' ' + (userInfo.profile.status || '') : '';
+
+                console.log("Combined Bio/Status text found:", bio);
+                console.log("Looking for code:", verificationCode);
 
                 if (bio.includes(verificationCode)) {
                     alert('Verification successful! Welcome, ' + pendingUsername);
@@ -205,7 +215,7 @@ function setupEvents() {
                     renderProfile();
                     switchPage('profile');
                 } else {
-                    alert('Code not found in your Scratch bio or "What I\'m working on" section yet. Make sure you saved it on Scratch and try again!');
+                    alert(`Code "${verificationCode}" not found in your Scratch bio yet. Make sure you hit "Save" on your Scratch profile and wait a few seconds!`);
                 }
             } catch (err) {
                 alert('Could not verify user. Make sure the Scratch username is correct.');
