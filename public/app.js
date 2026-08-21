@@ -176,7 +176,7 @@ function setupEvents() {
             try {
                 // Adding a timestamp parameter forces the proxy to bypass cache and fetch fresh data
                 const targetUrl = `https://api.scratch.mit.edu/users/${pendingUsername}?t=${Date.now()}`;
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+                const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(targetUrl)}`;
                 
                 const response = await fetch(proxyUrl);
                 const data = await response.json();
