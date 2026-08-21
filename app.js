@@ -15,7 +15,10 @@ function checkSession() {
             currentUser = data.user ? data.user.username : null;
             updateAuthUI();
             loadPosts();
-        }).catch(err => console.error('Session check error:', err));
+        }).catch(err => {
+            console.error('Session check error:', err);
+            updateAuthUI(); // Fallback update so login button displays even if fetch fails
+        });
 }
 
 function updateAuthUI() {
@@ -137,7 +140,8 @@ async function submitPost() {
     
     document.getElementById('scratch-input').value = '';
     document.getElementById('post-caption').value = '';
-    fetchUserCoins(); loadPosts();
+    loadPosts();
+    alert('Project posted successfully!');
 }
 
 function renderStore() {
@@ -179,19 +183,41 @@ async function buyItem(type, value, price) {
 }
 
 async function loadContests() {
-    const res = await fetch(`${API_BASE_URL}/api/contests`);
+    const feed = document.getElementById('contests-feed');
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/contests`);
+        const contests = await res.json();
+        feed.innerHTML = contests.length === 0 ? '<p style="text-align:center; color:var(--text-secondary); margin-top:20px;">No contests advertised yet. Be the first!</p>' : '';
+        
+        contests.forEach(c => {
+            feed.innerHTML += `
+                <div class="card">
+                    <h3>Scratch Contest #${escapeHTML(c.contestId)}</h3>
+                    <p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">Advertised by <strong>${escapeHTML(c.advertiser)}</strong></p>
+                    <p style="font-size:14px; margin-bottom:12px;">${escapeHTML(c.description)}</p>
+                    <a href="https://scratch.mit.edu/projects/${c.contestId}" target="_blank" class="btn-outline" style="width:100%;">View Scratch Contest</a>
+                </div>
+            `;
+        });
+    } catch (e) { feed.innerHTML = '<p style="color:red; text-align:center;">Error loading contests.</p>'; }
+}
+
+async function submitContest() {
+    if (!currentUser) return alert('Log in to advertise a contest.');
+    const contestInput = document.getElementById('contest-input').value;
+    const description = document.getElementById('contest-desc').value;
+
+    const res = await fetch(`${API_BASE_URL}/api/contests`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ contestInput, description })
+    });
     const data = await res.json();
-    document.getElementById('contests-list').innerHTML = data.map(c => `
-        <div style="border:1px solid var(--border-color); border-radius:10px; padding:16px; background:#fff;">
-            <h3>${escapeHTML(c.title)}</h3>
-            <p style="font-size:14px; margin:8px 0;">${escapeHTML(c.desc)}</p>
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
-                <span style="color:#d97706; font-weight:bold;">Prize: ${c.prize} Coins</span>
-                <span style="font-size:12px; color:var(--text-secondary);">${c.deadline}</span>
-            </div>
-            <button onclick="switchTab('home')" class="btn" style="width:100%; margin-top:12px;">Submit a Project</button>
-        </div>
-    `).join('');
+    if (data.error) return alert(data.error);
+
+    document.getElementById('contest-input').value = '';
+    document.getElementById('contest-desc').value = '';
+    fetchUserCoins(); loadContests();
+    alert('Contest advertised successfully! +5 Coins');
 }
 
 async function loadStudios() {
