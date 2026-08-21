@@ -3,99 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockBuzz</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Home - Project Feed</title>
+    <link rel="stylesheet" href="style.css"> <!-- Assuming you have a style.css -->
 </head>
 <body>
-    <header class="navbar">
-        <div class="logo">BlockBuzz</div>
-        <div class="nav-actions">
-            <span id="user-coins" class="hidden">🪙 0</span>
-            <button id="auth-btn" class="btn primary">Login</button>
+    <nav class="navbar">
+        <div class="logo">My App</div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="create.html">Post Project</a>
+            <a href="shop.html">Shop</a>
+            <a href="profile.html">Profile</a>
         </div>
-    </header>
+    </nav>
 
     <main class="container">
-        <!-- Sidebar: Shop & Tools -->
-        <aside class="sidebar">
-            <div class="panel">
-                <h3>🛒 Discord-Style Shop</h3>
-                <div class="shop-item">
-                    <span>🔴 Nitro Red Name (50 🪙)</span>
-                    <button onclick="buyItem('color', '#dc2626', 50)">Buy</button>
-                </div>
-                <div class="shop-item">
-                    <span>🟡 Gold Name (50 🪙)</span>
-                    <button onclick="buyItem('color', '#ca8a04', 50)">Buy</button>
-                </div>
-                <div class="shop-item">
-                    <span>✔️ Verified Badge (100 🪙)</span>
-                    <button onclick="buyItem('badge', '✔️', 100)">Buy</button>
-                </div>
-                <div class="shop-item">
-                    <span>🐛 Bug Hunter (100 🪙)</span>
-                    <button onclick="buyItem('badge', '🐛', 100)">Buy</button>
-                </div>
-            </div>
-            
-            <div class="panel hidden" id="post-creator">
-                <h3>📝 Share a Project</h3>
-                <input type="text" id="post-url" placeholder="Scratch Project ID/URL">
-                <input type="text" id="post-caption" placeholder="Caption this...">
-                <button onclick="submitPost()" class="btn primary w-100">Post</button>
-            </div>
-        </aside>
-
-        <!-- Main Feed -->
-        <section class="feed">
-            <div id="posts-container" class="grid"></div>
-        </section>
+        <h1>Recent Projects</h1>
+        <!-- Posts will be injected here by your JavaScript -->
+        <div id="posts-container">
+            <p>Loading posts...</p>
+        </div>
     </main>
-
-    <!-- OVERLAY MODALS -->
-    <div id="modal-overlay" class="hidden" onclick="closeModals(event)">
-        
-        <!-- Auth Modal -->
-        <div id="auth-modal" class="modal hidden">
-            <h2>Secure Login</h2>
-            <div id="auth-step-1">
-                <input type="text" id="auth-username" placeholder="Scratch Username">
-                <input type="text" id="auth-referral" placeholder="Referral Code (Optional)">
-                <button onclick="requestLogin()" class="btn primary">Get Code</button>
-            </div>
-            <div id="auth-step-2" class="hidden">
-                <p>Paste this code into your Scratch "About Me" to verify:</p>
-                <code id="verification-code-display"></code>
-                <button onclick="verifyLogin()" class="btn success mt-1">I pasted it, Verify!</button>
-            </div>
-        </div>
-
-        <!-- Post Detail Modal (Stats & Comments) -->
-        <div id="post-modal" class="modal large hidden">
-            <div class="post-header">
-                <h2 id="modal-title">Project Title</h2>
-                <button class="close-btn" onclick="closeAllModals()">✖</button>
-            </div>
-            <div class="post-split">
-                <div class="post-left">
-                    <img id="modal-img" src="" alt="Thumbnail">
-                    <div class="live-stats">
-                        <h4>Scratch Live Stats:</h4>
-                        <span id="scratch-loves">❤️ 0</span>
-                        <span id="scratch-faves">⭐ 0</span>
-                        <span id="scratch-remixes">🌀 0</span>
-                    </div>
-                </div>
-                <div class="post-right">
-                    <div id="modal-comments" class="comments-box"></div>
-                    <div class="comment-input-area">
-                        <input type="text" id="comment-text" placeholder="Write a comment...">
-                        <button onclick="submitComment()" class="btn primary">Send</button>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script src="app.js"></script>
 </body>
