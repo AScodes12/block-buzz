@@ -49,7 +49,7 @@ function switchPage(pageId) {
     if (pageId === 'profile') renderProfile();
 }
 
-// --- DATA FETCHING ---
+// --- DATA FETCHING (MATCHING YOUR SCHEMA) ---
 async function fetchPosts() {
     const container = document.getElementById('posts-container');
     if (!container) return;
@@ -58,25 +58,25 @@ async function fetchPosts() {
         const { data: posts, error } = await supabase
             .from('posts')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('id', { ascending: false });
 
         if (error) throw error;
 
         if (posts && posts.length > 0) {
             container.innerHTML = posts.map(p => `
                 <article class="post-card">
-                    ${p.type ? `<span class="post-tag">${p.type}</span>` : ''}
                     <div class="post-header">
                         <span class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</span>
                     </div>
-                    <p class="post-text">${p.text}</p>
-                    ${p.project_link ? `<a href="${p.project_link}" target="_blank" class="btn primary w-100">Play Scratch Project</a>` : ''}
+                    ${p.title ? `<h3>${p.title}</h3>` : ''}
+                    <p class="post-text">${p.caption || ''}</p>
+                    ${p.project_id ? `<a href="https://scratch.mit.edu/projects/${p.project_id}" target="_blank" class="btn primary w-100">Play Scratch Project</a>` : ''}
                 </article>
             `).join('');
             return;
         }
     } catch (err) {
-        console.log('Database notice: Ensure your "posts" table is created in Supabase.');
+        console.log('Database notice: Ensure your tables are created in Supabase.', err);
     }
 
     container.innerHTML = `<p class="text-center" style="color: gray; padding: 20px;">No posts yet. Be the first to create one!</p>`;
@@ -122,7 +122,7 @@ function updateUI() {
     }
 }
 
-// --- EVENTS & VERIFICATION ---
+// --- EVENTS & SCRATCH VERIFICATION ---
 function setupEvents() {
     const usernameForm = document.getElementById('username-form');
     if (usernameForm) {
@@ -152,27 +152,38 @@ function setupEvents() {
             verifyBioBtn.textContent = 'Checking profile...';
             
             try {
-                // Using an alternative proxy endpoint route to avoid 403 blocks
                 const targetUrl = `https://api.scratch.mit.edu/users/${pendingUsername}`;
-                const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
                 
                 const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('User not found or proxy blocked');
+                if (!response.ok) throw new Error('User not found');
                 
                 const userInfo = await response.json();
                 const bio = userInfo.profile ? (userInfo.profile.bio || '') + ' ' + (userInfo.profile.status || '') : '';
 
                 if (bio.includes(verificationCode)) {
+                    // Check or create user in Supabase 'users' table matching your schema
+                    let { data: existingUser } = await supabase
+                        .from('users')
+                        .select('*')
+                        .eq('username', pendingUsername)
+                        .single();
+
+                    if (!existingUser) {
+                        const newUser = {
+                            username: pendingUsername,
+                            coins: 100,
+                            color: '#0f172a',
+                            badges: ['Member'],
+                            referral_code: 'REF-' + Math.floor(1000 + Math.random() * 9000)
+                        };
+                        await supabase.from('users').insert([newUser]);
+                        currentUser = newUser;
+                    } else {
+                        currentUser = existingUser;
+                    }
+
                     alert('Verification successful! Welcome, ' + pendingUsername);
-                    
-                    currentUser = {
-                        id: 'u-' + pendingUsername.toLowerCase(),
-                        username: pendingUsername,
-                        coins: 100,
-                        color: '#2563eb',
-                        badges: ['Member'],
-                        referral_code: 'REF-' + Math.floor(1000 + Math.random() * 9000)
-                    };
 
                     document.getElementById('verify-step-2').classList.add('hidden');
                     document.getElementById('verify-step-1').classList.remove('hidden');
@@ -182,10 +193,10 @@ function setupEvents() {
                     renderProfile();
                     switchPage('profile');
                 } else {
-                    alert(`Code "${verificationCode}" not found in your Scratch bio yet. Save your bio on Scratch and try again in a few seconds.`);
+                    alert(`Code "${verificationCode}" not found in your Scratch bio yet. Save your bio on Scratch and try again.`);
                 }
             } catch (err) {
-                alert('Could not reach Scratch profile. Please check that your Scratch username is correct.');
+                alert('Could not verify profile. Please check that your Scratch username is correct.');
                 console.error(err);
             } finally {
                 verifyBioBtn.textContent = "I've put it in my bio, Verify Me!";
@@ -193,19 +204,26 @@ function setupEvents() {
         };
     }
 
-    // Forms and actions
+    // Post Form (Matches your posts table schema)
     const postForm = document.getElementById('create-post-form');
     if (postForm) {
         postForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUser) return alert('Please log in first!');
 
+            const projectLinkInput = document.getElementById('post-project-link').value;
+            // Extract project ID from Scratch link if user pasted full URL
+            const projectIdMatch = projectLinkInput.match(/projects\/(\d+)/);
+            const projectId = projectIdMatch ? projectIdMatch[1] : projectLinkInput;
+
             await supabase.from('posts').insert([{
-                project_link: document.getElementById('post-project-link').value,
-                text: document.getElementById('post-text').value,
+                id: Date.now(), // Generating a unique bigint ID
+                project_id: projectId,
+                title: document.getElementById('post-title')?.value || 'Untitled Post',
+                caption: document.getElementById('post-text').value,
                 author: currentUser.username,
                 author_color: currentUser.color,
-                type: 'Post'
+                author_badges: currentUser.badges
             }]);
 
             postForm.reset();
@@ -213,45 +231,50 @@ function setupEvents() {
         });
     }
 
+    // Studio Ad Form (Matches studios table schema)
     const studioForm = document.getElementById('studio-ad-form');
     if (studioForm) {
         studioForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUser) return alert('Please log in first!');
 
-            await supabase.from('posts').insert([{
-                project_link: document.getElementById('studio-link').value,
-                text: document.getElementById('studio-desc').value,
-                author: currentUser.username,
-                author_color: currentUser.color,
-                type: 'Studio Ad'
+            const studioLink = document.getElementById('studio-link').value;
+            const studioIdMatch = studioLink.match(/studios\/(\d+)/);
+            const studioId = studioIdMatch ? studioIdMatch[1] : studioLink;
+
+            await supabase.from('studios').insert([{
+                studio_id: studioId,
+                title: document.getElementById('studio-title')?.value || 'Studio Ad',
+                description: document.getElementById('studio-desc').value,
+                advertiser: currentUser.username
             }]);
 
             alert('Studio Ad Published!');
             studioForm.reset();
             switchPage('home');
-            fetchPosts();
         });
     }
 
+    // Contest Form (Matches contests table schema)
     const contestForm = document.getElementById('contest-form');
     if (contestForm) {
         contestForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!currentUser) return alert('Please log in first!');
 
-            await supabase.from('posts').insert([{
-                project_link: document.getElementById('contest-link').value,
-                text: document.getElementById('contest-rules').value,
-                author: currentUser.username,
-                author_color: currentUser.color,
-                type: 'Contest'
+            const contestLink = document.getElementById('contest-link').value;
+            const contestIdMatch = contestLink.match(/projects\/(\d+)/) || contestLink.match(/studios\/(\d+)/);
+            const contestId = contestIdMatch ? contestIdMatch[1] : contestLink;
+
+            await supabase.from('contests').insert([{
+                contest_id: contestId,
+                description: document.getElementById('contest-rules').value,
+                advertiser: currentUser.username
             }]);
 
             alert('Contest Created!');
             contestForm.reset();
             switchPage('home');
-            fetchPosts();
         });
     }
 
