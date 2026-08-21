@@ -9,8 +9,6 @@ const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 require('dotenv').config();
 
-app.set('trust proxy', 1);
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
@@ -19,6 +17,8 @@ const supabase = createClient(
     process.env.SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+app.set('trust proxy', 1);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(express.json({ limit: '10kb' }));
