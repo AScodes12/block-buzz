@@ -19,40 +19,41 @@ const pages = ['home', 'studio', 'contests', 'shop', 'profile'];
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    setupRouter();
+    setupNavigation();
     updateUI();
     setupEvents();
     fetchPosts();
 });
 
-// --- FIXED ROUTING HANDLER ---
-function setupRouter() {
-    window.addEventListener('hashchange', handleRoute);
-    handleRoute();
+// --- WORKING VIEW SWITCHER ---
+function setupNavigation() {
+    const navButtons = document.querySelectorAll('.nav-link');
+    
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetPage = btn.getAttribute('data-target');
+            switchPage(targetPage);
+        });
+    });
 }
 
-function handleRoute() {
-    let hash = window.location.hash.replace('#', '') || 'home';
-    if (!pages.includes(hash)) hash = 'home';
-
+function switchPage(pageId) {
     pages.forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
-        const navEl = document.getElementById(`nav-${p}`);
-
         if (pageEl) {
-            pageEl.classList.toggle('hidden', p !== hash);
-        }
-        
-        if (navEl) {
-            if (p === hash) {
-                navEl.classList.add('active');
-            } else {
-                navEl.classList.remove('active');
-            }
+            pageEl.classList.toggle('hidden', p !== pageId);
         }
     });
 
-    if (hash === 'profile') renderProfile();
+    document.querySelectorAll('.nav-link').forEach(btn => {
+        if (btn.getAttribute('data-target') === pageId) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    if (pageId === 'profile') renderProfile();
 }
 
 // --- DATA FETCHING & RENDERING ---
@@ -67,8 +68,8 @@ async function fetchPosts() {
     const postsList = (posts && posts.length > 0) ? posts : [
         {
             id: '1',
-            title: 'Welcome to the BlockBuzz Feed!',
-            text: 'Posts are rendered one per row with complete text support.',
+            project_link: 'https://scratch.mit.edu/projects/10421312/',
+            text: 'Check out this sample Scratch project link on our new feed!',
             author: 'System',
             author_color: '#2563eb',
             type: 'General'
@@ -81,8 +82,8 @@ async function fetchPosts() {
             <div class="post-header">
                 <span class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</span>
             </div>
-            <h3 class="post-title">${p.title}</h3>
             <p class="post-text">${p.text}</p>
+            ${p.project_link ? `<a href="${p.project_link}" target="_blank" class="btn primary w-100">Play Scratch Project</a>` : ''}
         </article>
     `).join('');
 }
@@ -115,7 +116,7 @@ function updateUI() {
     const authBtn = document.getElementById('auth-btn');
     if (authBtn) {
         authBtn.textContent = currentUser ? 'Profile' : 'Login';
-        authBtn.onclick = () => window.location.hash = 'profile';
+        authBtn.onclick = () => switchPage('profile');
     }
 }
 
@@ -124,11 +125,11 @@ function setupEvents() {
     // Create Post Form Submission
     document.getElementById('create-post-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const title = document.getElementById('post-title').value;
+        const project_link = document.getElementById('post-project-link').value;
         const text = document.getElementById('post-text').value;
 
         const newPost = {
-            title,
+            project_link,
             text,
             author: currentUser?.username || 'Guest',
             author_color: currentUser?.color || '#0f172a',
@@ -143,32 +144,31 @@ function setupEvents() {
     // Studio Form Submission
     document.getElementById('studio-ad-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const title = document.getElementById('studio-title').value;
         const link = document.getElementById('studio-link').value;
         const desc = document.getElementById('studio-desc').value;
 
         await supabase.from('posts').insert([{
-            title: `Studio Ad: ${title}`,
-            text: `${desc}\n\nLink: ${link}`,
+            project_link: link,
+            text: desc,
             author: currentUser?.username || 'Guest',
             author_color: currentUser?.color || '#0f172a',
-            type: 'Studio'
+            type: 'Studio Ad'
         }]);
 
         alert('Studio Ad Published!');
         document.getElementById('studio-ad-form').reset();
-        window.location.hash = 'home';
+        switchPage('home');
         fetchPosts();
     });
 
     // Contest Form Submission
     document.getElementById('contest-form').addEventListener('submit', async (e) => {
         e.preventDefault();
-        const title = document.getElementById('contest-title').value;
+        const link = document.getElementById('contest-link').value;
         const rules = document.getElementById('contest-rules').value;
 
         await supabase.from('posts').insert([{
-            title: `Contest: ${title}`,
+            project_link: link,
             text: rules,
             author: currentUser?.username || 'Guest',
             author_color: currentUser?.color || '#0f172a',
@@ -177,7 +177,7 @@ function setupEvents() {
 
         alert('Contest Created!');
         document.getElementById('contest-form').reset();
-        window.location.hash = 'home';
+        switchPage('home');
         fetchPosts();
     });
 
