@@ -1,241 +1,240 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+let currentUser = null;
+let currentActivePostId = null;
 
-// 1. Initialize Supabase (Replace with your actual project details)
-const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// Global State
-let currentUser = null; // From Supabase Auth
-let userData = null;    // From your custom 'users' table
-
-// 2. Main Router - Runs when the page loads
-document.addEventListener('DOMContentLoaded', async () => {
-    await fetchCurrentUser();
-
-    const path = window.location.pathname;
-
-    // Route to the correct functions based on the current page
-    if (path.includes('index.html') || path === '/' || path.endsWith('/')) {
-        initHome();
-    } else if (path.includes('create.html')) {
-        initCreate();
-    } else if (path.includes('shop.html')) {
-        initShop();
-    } else if (path.includes('profile.html')) {
-        initProfile();
-    } else if (path.includes('admin.html')) {
-        initAdmin();
-    }
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    checkSession();
+    loadPosts();
 });
 
-// 3. User Authentication & Data Fetching
-async function fetchCurrentUser() {
-    const { data: { user } } = await supabase.auth.getUser();
-    currentUser = user;
-
-    if (currentUser) {
-        // Fetch custom user data (coins, badges, color) from your database schema
-        const { data, error } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', currentUser.id) // Assuming auth.uid maps to your users table
-            .single();
-
-        if (data) userData = data;
+async function checkSession() {
+    const res = await fetch('/api/auth/me');
+    const data = await res.json();
+    if (data.user) {
+        currentUser = data.user;
+        document.getElementById('auth-btn').innerText = `Logout`;
+        document.getElementById('auth-btn').onclick = logout;
+        document.getElementById('user-coins').classList.remove('hidden');
+        document.getElementById('user-coins').innerText = `🪙 ${currentUser.coins}`;
+        document.getElementById('post-creator').classList.remove('hidden');
+        document.getElementById('profile-btn').classList.remove('hidden');
+    } else {
+        document.getElementById('auth-btn').onclick = () => {
+            document.getElementById('modal-overlay').classList.remove('hidden');
+            document.getElementById('auth-modal').classList.remove('hidden');
+        };
     }
 }
 
-// ---------------------------------------------------------
-// PAGE SPECIFIC LOGIC
-// ---------------------------------------------------------
+// --- MODALS ---
+function closeModals(e) {
+    if (e && e.target.id === 'modal-overlay') closeAllModals();
+}
+function closeAllModals() {
+    document.getElementById('modal-overlay').classList.add('hidden');
+    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
+    currentActivePostId = null;
+}
 
-// --- HOME PAGE (index.html) ---
-async function initHome() {
+function openProfileModal() {
+    if (!currentUser) return;
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    document.getElementById('profile-modal').classList.remove('hidden');
+    document.getElementById('prof-username').textContent = currentUser.username;
+    document.getElementById('prof-ref').textContent = currentUser.referral_code || 'None';
+}
+
+// --- AUTHENTICATION ---
+async function requestLogin() {
+    const username = document.getElementById('auth-username').value;
+    const referralCode = document.getElementById('auth-referral').value;
+    const res = await fetch('/api/auth/register-request', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ username, referralCode })
+    });
+    const data = await res.json();
+    if (data.verificationCode) {
+        document.getElementById('auth-step-1').classList.add('hidden');
+        document.getElementById('auth-step-2').classList.remove('hidden');
+        document.getElementById('verification-code-display').innerText = data.verificationCode;
+    } else alert(data.error);
+}
+
+async function verifyLogin() {
+    const username = document.getElementById('auth-username').value;
+    const res = await fetch('/api/auth/verify', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ username })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeAllModals();
+        location.reload();
+    } else alert(data.error);
+}
+
+async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    location.reload();
+}
+
+// --- FEED & POSTS ---
+async function loadPosts() {
+    const res = await fetch('/api/posts');
+    const posts = await res.json();
     const container = document.getElementById('posts-container');
-    
-    const { data: posts, error } = await supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false });
+    container.innerHTML = '';
 
-    if (error) {
-        container.innerHTML = `<p>Error loading posts: ${error.message}</p>`;
-        return;
-    }
-
-    if (posts.length === 0) {
-        container.innerHTML = `<p>No projects posted yet. Be the first!</p>`;
-        return;
-    }
-
-    container.innerHTML = posts.map(post => `
-        <div class="post" style="border: 1px solid #ccc; padding: 15px; margin-bottom: 10px; border-radius: 8px;">
-            <h3>${post.title}</h3>
-            <p><strong>By:</strong> ${post.author}</p>
-            <p>${post.caption}</p>
-            <p><small>Project ID: ${post.project_id}</small></p>
-        </div>
-    `).join('');
-}
-
-// --- CREATE PAGE (create.html) ---
-function initCreate() {
-    if (!currentUser) {
-        alert("You must be logged in to post!");
-        window.location.href = 'index.html'; // Redirect to home/login
-        return;
-    }
-
-    const form = document.getElementById('create-post-form');
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
+    posts.forEach(post => {
+        const hasLiked = currentUser && post.likes && post.likes.includes(currentUser.username);
+        const isAdmin = currentUser && currentUser.is_admin;
         
-        const title = document.getElementById('title').value;
-        const projectId = document.getElementById('project-id').value;
-        const caption = document.getElementById('caption').value;
-
-        // Generate a random ID for the post
-        const id = Math.floor(Math.random() * 1000000000); 
-
-        const { error } = await supabase.from('posts').insert([{
-            id: id,
-            title: title,
-            project_id: projectId,
-            caption: caption,
-            author: userData ? userData.username : 'Unknown',
-            author_pfp: userData ? userData.pfp : null
-        }]);
-
-        if (error) {
-            alert('Error posting: ' + error.message);
-        } else {
-            alert('Project posted successfully!');
-            window.location.href = 'index.html'; // Send back to feed
+        const card = document.createElement('div');
+        card.className = 'post-card';
+        card.innerHTML = `
+            <img src="${post.thumbnail}" alt="thumb" onclick="openPostModal(${post.id}, ${post.project_id})">
+            <div class="post-info">
+                <div class="post-title"></div>
+                <div class="post-author"></div>
+                <div class="post-stats">
+                    <span class="like-btn ${hasLiked ? 'liked' : ''}" onclick="toggleLike(${post.id}, event)">
+                        ❤️ <span class="like-count">${(post.likes || []).length}</span>
+                    </span>
+                    <span>👁️ ${(post.views || []).length}</span>
+                    ${isAdmin ? `<button class="btn danger" onclick="deletePost(${post.id}, event)">🗑️</button>` : ''}
+                </div>
+            </div>
+        `;
+        
+        card.querySelector('.post-title').textContent = post.title;
+        
+        const authorDiv = card.querySelector('.post-author');
+        const nameSpan = document.createElement('span');
+        nameSpan.textContent = post.author;
+        nameSpan.style.color = post.author_color || 'var(--text)';
+        nameSpan.style.fontWeight = 'bold';
+        authorDiv.appendChild(nameSpan);
+        
+        if (post.author_badges) {
+            post.author_badges.forEach(b => {
+                const badgeSpan = document.createElement('span');
+                badgeSpan.className = 'badge';
+                badgeSpan.textContent = b;
+                authorDiv.appendChild(badgeSpan);
+            });
         }
+        
+        container.appendChild(card);
     });
 }
 
-// --- SHOP PAGE (shop.html) ---
-function initShop() {
-    if (!currentUser || !userData) {
-        document.getElementById('coin-balance').innerText = "0 (Log in first)";
-        return;
+async function submitPost() {
+    const scratchInput = document.getElementById('post-url').value;
+    const caption = document.getElementById('post-caption').value;
+    const res = await fetch('/api/posts', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ scratchInput, caption })
+    });
+    if (res.ok) {
+        document.getElementById('post-url').value = '';
+        document.getElementById('post-caption').value = '';
+        loadPosts();
+    } else {
+        const err = await res.json();
+        alert(err.error || "Failed to post.");
     }
-
-    // Update UI with current balance
-    document.getElementById('coin-balance').innerText = userData.coins;
-
-    // Attach shop functions to the window object so HTML inline onclick can see them
-    window.buyColor = async function(colorHex, cost) {
-        if (userData.coins < cost) return alert("Not enough coins! 🪙");
-
-        const { error } = await supabase.from('users')
-            .update({ 
-                color: colorHex, 
-                coins: userData.coins - cost 
-            })
-            .eq('id', userData.id);
-
-        if (!error) {
-            alert("Color purchased successfully!");
-            location.reload(); // Refresh to update stats
-        } else {
-            alert("Purchase failed: " + error.message);
-        }
-    };
-
-    window.buyBadge = async function(badgeName, cost) {
-        if (userData.coins < cost) return alert("Not enough coins! 🪙");
-        if (userData.badges.includes(badgeName)) return alert("You already own this badge!");
-
-        const updatedBadges = [...userData.badges, badgeName];
-
-        const { error } = await supabase.from('users')
-            .update({ 
-                badges: updatedBadges, 
-                coins: userData.coins - cost 
-            })
-            .eq('id', userData.id);
-
-        if (!error) {
-            alert("Badge purchased successfully!");
-            location.reload();
-        } else {
-            alert("Purchase failed: " + error.message);
-        }
-    };
 }
 
-// --- PROFILE PAGE (profile.html) ---
-async function initProfile() {
-    if (!currentUser || !userData) {
-        document.querySelector('.container').innerHTML = '<h2>Please log in to view your profile.</h2>';
-        return;
-    }
-
-    // Populate user info
-    document.getElementById('profile-username').innerText = userData.username;
-    document.getElementById('profile-username').style.color = userData.color; // Apply custom color
-    document.getElementById('profile-badges').innerText = "Badges: " + (userData.badges.length > 0 ? userData.badges.join(', ') : 'None');
-    document.getElementById('referral-code').innerText = userData.referral_code || "Generate one in settings";
-    if (userData.pfp) {
-        document.getElementById('profile-pfp').src = userData.pfp;
-    }
-
-    // Fetch ONLY the posts created by this user
-    const container = document.getElementById('user-posts-container');
-    const { data: myPosts, error } = await supabase
-        .from('posts')
-        .select('*')
-        .eq('author', userData.username)
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        container.innerHTML = `<p>Error loading your posts.</p>`;
-        return;
-    }
-
-    if (myPosts.length === 0) {
-        container.innerHTML = `<p>You haven't posted any projects yet.</p>`;
-        return;
-    }
-
-    container.innerHTML = myPosts.map(post => `
-        <div class="post" style="border: 1px solid #ccc; padding: 15px; margin-bottom: 10px;">
-            <h3>${post.title}</h3>
-            <p>${post.caption}</p>
-        </div>
-    `).join('');
+// --- INTERACTION (LIKES, VIEWS, MODERATION) ---
+async function toggleLike(postId, event) {
+    event.stopPropagation();
+    if (!currentUser) return alert("Log in first!");
+    const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    if (res.ok) loadPosts();
 }
 
-// --- ADMIN PAGE (admin.html) ---
-function initAdmin() {
-    if (!userData || !userData.is_admin) {
-        document.querySelector('.container').innerHTML = '<h1 style="color:red;">Access Denied. You are not an admin.</h1>';
-        return;
+async function deletePost(postId, event) {
+    event.stopPropagation();
+    if (!confirm("Delete this post?")) return;
+    const res = await fetch(`/api/moderation/posts/${postId}`, { method: 'DELETE' });
+    if (res.ok) loadPosts();
+}
+
+// --- POST DETAILS (MODAL & COMMENTS & LIVE STATS) ---
+async function openPostModal(postId, projectId) {
+    currentActivePostId = postId;
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    document.getElementById('post-modal').classList.remove('hidden');
+    document.getElementById('modal-comments').innerHTML = 'Loading comments...';
+    
+    if (currentUser) fetch(`/api/posts/${postId}/view`, { method: 'POST' }).then(() => loadPosts());
+
+    try {
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
+        if (scratchRes.ok) {
+            const data = await scratchRes.json();
+            document.getElementById('modal-title').textContent = data.title;
+            document.getElementById('modal-img').src = data.image;
+            document.getElementById('scratch-loves').textContent = `❤️ ${data.stats.loves}`;
+            document.getElementById('scratch-faves').textContent = `⭐ ${data.stats.favorites}`;
+            document.getElementById('scratch-remixes').textContent = `🌀 ${data.stats.remixes}`;
+        }
+    } catch(e) {}
+
+    loadComments();
+}
+
+async function loadComments() {
+    if (!currentActivePostId) return;
+    const res = await fetch(`/api/posts/${currentActivePostId}/comments`);
+    const comments = await res.json();
+    const box = document.getElementById('modal-comments');
+    box.innerHTML = '';
+    
+    comments.forEach(c => {
+        const div = document.createElement('div');
+        div.className = 'comment';
+        
+        const authorStr = document.createElement('strong');
+        authorStr.textContent = c.author + ": ";
+        
+        const textStr = document.createElement('span');
+        textStr.textContent = c.text;
+        
+        div.appendChild(authorStr);
+        div.appendChild(textStr);
+        box.appendChild(div);
+    });
+}
+
+async function submitComment() {
+    const text = document.getElementById('comment-text').value;
+    if (!text) return;
+    const res = await fetch(`/api/posts/${currentActivePostId}/comments`, {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ text })
+    });
+    if (res.ok) {
+        document.getElementById('comment-text').value = '';
+        loadComments();
+    } else {
+        alert("Must be logged in!");
     }
+}
 
-    window.adminDeletePost = async function() {
-        const postId = document.getElementById('delete-post-id').value;
-        const { error } = await supabase.from('posts').delete().eq('id', postId);
-        
-        if (error) alert("Error: " + error.message);
-        else alert(`Post ${postId} deleted successfully.`);
-    };
-
-    window.adminGiveCoins = async function() {
-        const username = document.getElementById('reward-username').value;
-        const amount = parseInt(document.getElementById('reward-amount').value);
-
-        // First get the user's current coins
-        const { data: targetUser, error: fetchErr } = await supabase.from('users').select('coins').eq('username', username).single();
-        if (fetchErr) return alert("User not found.");
-
-        // Add the coins
-        const { error: updateErr } = await supabase.from('users').update({ coins: targetUser.coins + amount }).eq('username', username);
-        
-        if (updateErr) alert("Error: " + updateErr.message);
-        else alert(`Successfully gave ${amount} coins to ${username}!`);
-    };
+// --- STORE LOGIC ---
+async function buyItem(type, value, price) {
+    if (!confirm(`Buy this for ${price} coins?`)) return;
+    const res = await fetch('/api/store/buy', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ type, value, price })
+    });
+    const data = await res.json();
+    if (data.success) {
+        alert("Bought successfully!");
+        checkSession();
+        loadPosts();
+    } else {
+        alert(data.error);
+    }
 }
