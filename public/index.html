@@ -165,14 +165,32 @@
         </div>
 
         <div id="profile-logged-out" class="panel hidden">
-            <h1>Login / Register</h1>
-            <form id="login-form" class="mt-1">
-                <div class="input-group">
-                    <input type="text" id="login-username" required placeholder="Scratch Username">
-                </div>
-                <button type="submit" class="btn primary w-100">Continue</button>
-            </form>
+    <h1>Scratch Verification Login</h1>
+    <p class="subtitle">Verify your identity using your Scratch profile bio.</p>
+    
+    <!-- Step 1: Enter Username -->
+    <div id="verify-step-1">
+        <form id="username-form" class="mt-1">
+            <div class="input-group">
+                <label>Scratch Username</label>
+                <input type="text" id="scratch-username-input" required placeholder="YourScratchName">
+            </div>
+            <button type="submit" class="btn primary w-100">Get Verification Code</button>
+        </form>
+    </div>
+
+    <!-- Step 2: Put Code in Bio & Verify -->
+    <div id="verify-step-2" class="hidden mt-1">
+        <p class="subtitle" style="margin-bottom: 10px;">
+            Copy this code and paste it anywhere in your <strong>Scratch Profile Bio</strong> or <strong>"What I'm Working On"</strong> section:
+        </p>
+        <div style="background: var(--bg-ter); padding: 12px; border-radius: 6px; text-align: center; font-size: 18px; font-weight: bold; letter-spacing: 2px; color: var(--accent); margin-bottom: 15px;" id="verification-code-display">
+            ---
         </div>
+        <button type="button" id="btn-verify-bio" class="btn primary w-100">I've put it in my bio, Verify Me!</button>
+        <button type="button" id="btn-back-username" class="btn secondary w-100 mt-1">Back</button>
+        </div>
+    </div>
     </section>
 
     <script type="module" src="app.js"></script>
