@@ -3,17 +3,10 @@ let currentUser = null;
 
 function escapeHTML(str) {
     if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+    return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    checkSession();
-});
+document.addEventListener('DOMContentLoaded', () => checkSession());
 
 function checkSession() {
     fetch(`${API_BASE_URL}/api/auth/me`, { credentials: 'include' })
@@ -22,8 +15,7 @@ function checkSession() {
             currentUser = data.user ? data.user.username : null;
             updateAuthUI();
             loadPosts();
-        })
-        .catch(err => console.error('Session check error:', err));
+        }).catch(err => console.error('Session check error:', err));
 }
 
 function updateAuthUI() {
@@ -40,227 +32,222 @@ function updateAuthUI() {
         `;
         fetchUserCoins();
     } else {
-        container.innerHTML = `
-            <button onclick="startVerificationFlow()" class="btn">Log In</button>
-        `;
+        container.innerHTML = `<button onclick="startVerificationFlow()" class="btn">Log In</button>`;
     }
 }
 
 async function fetchUserCoins() {
     if (!currentUser) return;
     try {
-        const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(currentUser)}`, { credentials: 'include' });
+        const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(currentUser)}`);
         const data = await res.json();
         const coinsEl = document.getElementById('header-coins');
         if (coinsEl && data.coins !== undefined) coinsEl.textContent = data.coins;
-    } catch (e) {
-        console.error('Failed to fetch coins', e);
-    }
+    } catch (e) { console.error(e); }
 }
 
 async function startVerificationFlow() {
     const username = prompt('Enter your Scratch Username:');
     if (!username || !username.trim()) return;
-
     const refCode = prompt('Enter a Referral Code (Optional - leave blank if none):');
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/auth/register-request`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ 
-                username: username.trim(),
-                referralCode: refCode 
-            })
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username.trim(), referralCode: refCode })
         });
         const data = await res.json();
-
         if (data.error) return alert(data.error);
 
-        const code = data.verificationCode;
-        alert(`Step 1: Copy this code:\n\n${code}\n\nStep 2: Paste it into your Scratch Profile Bio.\nStep 3: Click OK to verify.`);
-
+        alert(`Step 1: Copy this code:\n\n${data.verificationCode}\n\nStep 2: Paste it into your Scratch Profile Bio.\nStep 3: Click OK to verify.`);
         verifyAccount(username.trim());
-    } catch (e) {
-        alert('Network error connecting to backend.');
-    }
+    } catch (e) { alert('Network error connecting to backend.'); }
 }
 
 async function verifyAccount(username) {
     try {
         const res = await fetch(`${API_BASE_URL}/api/auth/verify`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ username })
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username })
         });
         const data = await res.json();
 
-        if (data.error) {
-            alert(data.error);
+        if (data.error) return alert(data.error);
+        if (data.isNewUser) {
+            document.getElementById('bonus-banner').style.display = data.bonusApplied ? 'block' : 'none';
+            document.getElementById('verification-modal').style.display = 'flex';
         } else {
-            if (data.isNewUser) {
-                // Show bonus banner only if a valid referral code was used
-                const banner = document.getElementById('bonus-banner');
-                if (data.bonusApplied) {
-                    banner.style.display = 'block';
-                } else {
-                    banner.style.display = 'none';
-                }
-                document.getElementById('verification-modal').style.display = 'flex';
-            } else {
-                alert(`Welcome back, ${data.username}!`);
-            }
-            checkSession();
+            alert(`Welcome back, ${data.username}!`);
         }
-    } catch (e) {
-        alert('Verification request failed.');
-    }
+        checkSession();
+    } catch (e) { alert('Verification request failed.'); }
 }
 
-function closeModal() {
-    document.getElementById('verification-modal').style.display = 'none';
-}
-
+function closeModal() { document.getElementById('verification-modal').style.display = 'none'; }
 async function logout() {
     await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
-    currentUser = null;
-    updateAuthUI();
-    loadPosts();
+    currentUser = null; updateAuthUI(); loadPosts();
 }
 
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
     document.querySelectorAll('.nav-link').forEach(n => n.classList.remove('active'));
-
-    const section = document.getElementById(`${tabName}-section`);
-    const navBtn = document.getElementById(`nav-${tabName}`);
-
-    if (section) section.style.display = 'block';
-    if (navBtn) navBtn.classList.add('active');
+    document.getElementById(`${tabName}-section`).style.display = 'block';
+    document.getElementById(`nav-${tabName}`).classList.add('active');
 
     if (tabName === 'account') loadAccountPage();
     if (tabName === 'store') renderStore();
+    if (tabName === 'contests') loadContests();
+    if (tabName === 'studios') loadStudios();
 }
 
 async function loadPosts() {
     const feed = document.getElementById('feed');
-    if (!feed) return;
-
     try {
         const res = await fetch(`${API_BASE_URL}/api/posts`, { credentials: 'include' });
         const posts = await res.json();
-
-        feed.innerHTML = '';
-        if (posts.length === 0) {
-            feed.innerHTML = '<p style="text-align:center; color:var(--text-secondary);">No posts shared yet.</p>';
-            return;
-        }
-
+        feed.innerHTML = posts.length === 0 ? '<p style="text-align:center; color:var(--text-secondary);">No posts yet.</p>' : '';
+        
         posts.forEach(post => {
-            const card = document.createElement('div');
-            card.className = 'project-card';
-
-            card.innerHTML = `
-                <div style="display:flex; align-items:center; gap:10px;">
-                    <div class="avatar-wrapper"><img src="${escapeHTML(post.authorPfp)}"></div>
-                    <strong style="color:${escapeHTML(post.authorColor)}">${escapeHTML(post.author)}</strong>
+            const badgesHTML = (post.authorBadges || []).map(b => `<span style="font-size:16px;">${b}</span>`).join('');
+            feed.innerHTML += `
+                <div class="card">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <div class="avatar-wrapper"><img src="${escapeHTML(post.authorPfp)}"></div>
+                        <strong style="color:${escapeHTML(post.authorColor)}">${escapeHTML(post.author)} ${badgesHTML}</strong>
+                    </div>
+                    <img src="${escapeHTML(post.thumbnail)}" class="project-thumb">
+                    <h4 style="margin-bottom:6px;">${escapeHTML(post.title)}</h4>
+                    <p style="font-size:14px;">${escapeHTML(post.caption)}</p>
                 </div>
-                <img src="${escapeHTML(post.thumbnail)}" class="project-thumb">
-                <h4 style="margin-bottom:6px;">${escapeHTML(post.title)}</h4>
-                <p style="font-size:14px;">${escapeHTML(post.caption)}</p>
             `;
-            feed.appendChild(card);
         });
-    } catch (e) {
-        feed.innerHTML = '<p style="color:red; text-align:center;">Error loading posts.</p>';
-    }
+    } catch (e) { feed.innerHTML = '<p style="color:red; text-align:center;">Error loading posts.</p>'; }
 }
 
 async function submitPost() {
     if (!currentUser) return alert('Log in to share a project.');
-
     const scratchInput = document.getElementById('scratch-input').value;
     const caption = document.getElementById('post-caption').value;
 
     const res = await fetch(`${API_BASE_URL}/api/posts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ scratchInput, caption })
     });
-
     const data = await res.json();
-    if (data.error) {
-        alert(data.error);
-    } else {
-        document.getElementById('scratch-input').value = '';
-        document.getElementById('post-caption').value = '';
-        fetchUserCoins();
-        loadPosts();
-    }
+    if (data.error) return alert(data.error);
+    
+    document.getElementById('scratch-input').value = '';
+    document.getElementById('post-caption').value = '';
+    fetchUserCoins(); loadPosts();
 }
 
 function renderStore() {
-    const container = document.getElementById('store-items');
-    if (!container) return;
-
-    const items = [
-        { name: 'Gold Glow', price: 100, color: '#eab308' },
-        { name: 'Neon Purple', price: 150, color: '#a855f7' },
-        { name: 'Emerald Green', price: 150, color: '#10b981' },
-        { name: 'Ruby Red', price: 200, color: '#ef4444' },
-        { name: 'Ocean Blue', price: 150, color: '#0ea5e9' },
-        { name: 'Hot Pink', price: 250, color: '#ec4899' }
+    const colors = [
+        { name: 'Gold', price: 100, val: '#eab308' }, { name: 'Purple', price: 150, val: '#a855f7' },
+        { name: 'Green', price: 150, val: '#10b981' }, { name: 'Red', price: 200, val: '#ef4444' }
+    ];
+    const badges = [
+        { name: 'Star', price: 50, val: '⭐' }, { name: 'Fire', price: 100, val: '🔥' },
+        { name: 'Diamond', price: 300, val: '💎' }, { name: 'Verified', price: 500, val: '✔️' }
     ];
 
-    container.innerHTML = items.map(item => `
-        <div style="border:1px solid var(--border-color); padding:12px; border-radius:10px; text-align:center; background:#fff;">
-            <div style="width:28px; height:28px; background:${item.color}; border-radius:50%; margin:0 auto 8px auto;"></div>
-            <strong>${escapeHTML(item.name)}</strong>
-            <p style="font-size:13px; color:var(--text-secondary); margin:4px 0 10px 0;">${item.price} Coins</p>
-            <button onclick="buyItem('${item.color}', ${item.price})" class="btn" style="width:100%; font-size:13px;">Buy</button>
+    document.getElementById('store-colors').innerHTML = colors.map(c => `
+        <div style="border:1px solid var(--border-color); padding:12px; border-radius:10px; text-align:center; background:#f8fafc;">
+            <div style="width:24px; height:24px; background:${c.val}; border-radius:50%; margin:0 auto 8px;"></div>
+            <strong>${c.name}</strong><br><small>${c.price} Coins</small>
+            <button onclick="buyItem('color', '${c.val}', ${c.price})" class="btn" style="width:100%; margin-top:8px; padding:4px;">Buy</button>
+        </div>
+    `).join('');
+
+    document.getElementById('store-badges').innerHTML = badges.map(b => `
+        <div style="border:1px solid var(--border-color); padding:12px; border-radius:10px; text-align:center; background:#f8fafc;">
+            <div style="font-size:24px; margin-bottom:8px;">${b.val}</div>
+            <strong>${b.name}</strong><br><small>${b.price} Coins</small>
+            <button onclick="buyItem('badge', '${b.val}', ${b.price})" class="btn" style="width:100%; margin-top:8px; padding:4px;">Buy</button>
         </div>
     `).join('');
 }
 
-async function buyItem(color, price) {
-    if (!currentUser) return alert('Log in to buy items from the store.');
-
+async function buyItem(type, value, price) {
+    if (!currentUser) return alert('Log in to use the store.');
     const res = await fetch(`${API_BASE_URL}/api/store/buy`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ color, price })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ type, value, price })
     });
-
     const data = await res.json();
-    if (data.error) {
-        alert(data.error);
-    } else {
-        alert('Item purchased successfully! Your new post header color has been updated.');
-        fetchUserCoins();
-        loadPosts();
-    }
+    if (data.error) alert(data.error);
+    else { alert('Purchased!'); fetchUserCoins(); }
+}
+
+async function loadContests() {
+    const res = await fetch(`${API_BASE_URL}/api/contests`);
+    const data = await res.json();
+    document.getElementById('contests-list').innerHTML = data.map(c => `
+        <div style="border:1px solid var(--border-color); border-radius:10px; padding:16px; background:#fff;">
+            <h3>${escapeHTML(c.title)}</h3>
+            <p style="font-size:14px; margin:8px 0;">${escapeHTML(c.desc)}</p>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px;">
+                <span style="color:#d97706; font-weight:bold;">Prize: ${c.prize} Coins</span>
+                <span style="font-size:12px; color:var(--text-secondary);">${c.deadline}</span>
+            </div>
+            <button onclick="switchTab('home')" class="btn" style="width:100%; margin-top:12px;">Submit a Project</button>
+        </div>
+    `).join('');
+}
+
+async function loadStudios() {
+    const feed = document.getElementById('studios-feed');
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/studios`);
+        const studios = await res.json();
+        feed.innerHTML = studios.length === 0 ? '<p style="text-align:center; color:var(--text-secondary); margin-top:20px;">No studios advertised yet. Be the first!</p>' : '';
+        
+        studios.forEach(s => {
+            feed.innerHTML += `
+                <div class="card">
+                    <div style="display:flex; align-items:center; gap:12px;">
+                        <img src="${escapeHTML(s.image)}" style="width:60px; height:60px; object-fit:cover; border-radius:8px;">
+                        <div>
+                            <h3>${escapeHTML(s.title)}</h3>
+                            <p style="font-size:13px; color:var(--text-secondary);">Advertised by <strong>${escapeHTML(s.advertiser)}</strong></p>
+                        </div>
+                    </div>
+                    <p style="font-size:14px; margin:12px 0;">${escapeHTML(s.description)}</p>
+                    <a href="https://scratch.mit.edu/studios/${s.studioId}" target="_blank" class="btn-outline" style="width:100%;">Visit Scratch Studio</a>
+                </div>
+            `;
+        });
+    } catch (e) { feed.innerHTML = '<p style="color:red; text-align:center;">Error loading studios.</p>'; }
+}
+
+async function submitStudio() {
+    if (!currentUser) return alert('Log in to advertise a studio.');
+    const studioInput = document.getElementById('studio-input').value;
+    const description = document.getElementById('studio-desc').value;
+
+    const res = await fetch(`${API_BASE_URL}/api/studios`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ studioInput, description })
+    });
+    const data = await res.json();
+    if (data.error) return alert(data.error);
+
+    document.getElementById('studio-input').value = '';
+    document.getElementById('studio-desc').value = '';
+    fetchUserCoins(); loadStudios();
+    alert('Studio advertised successfully! +5 Coins');
 }
 
 async function loadAccountPage() {
     const container = document.getElementById('account-profile-content');
-    if (!container) return;
+    if (!currentUser) return container.innerHTML = '<div class="card"><p>Log in to view profile details.</p></div>';
 
-    if (!currentUser) {
-        container.innerHTML = '<div class="create-card"><p>Please log in to view profile details.</p></div>';
-        return;
-    }
-
-    const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(currentUser)}`, { credentials: 'include' });
+    const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(currentUser)}`);
     const data = await res.json();
-
+    
     container.innerHTML = `
-        <div class="create-card">
-            <h2 style="color:${escapeHTML(data.color)}">${escapeHTML(data.username)}</h2>
-            <p style="margin-top:8px;">Coin Balance: <strong>${data.coins}</strong></p>
+        <div class="card">
+            <h2 style="color:${escapeHTML(data.color)}">${escapeHTML(data.username)} ${(data.badges || []).join(' ')}</h2>
+            <p style="margin-top:8px;">Coins: <strong>${data.coins}</strong></p>
             <p>Referral Code: <code>${escapeHTML(data.referralCode)}</code></p>
         </div>
     `;
