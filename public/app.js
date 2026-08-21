@@ -1,19 +1,14 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
 // --- SUPABASE CONFIGURATION ---
-const SUPABASE_URL = 'https://jslfotggoxgibjhsgfpe.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_bM9jO-5AWPtyF_ME6gbKug_-FN56QxP';
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // --- APP STATE ---
-let currentUser = {
-    id: 'demo-user',
-    username: 'ScratchDev',
-    coins: 100,
-    color: '#2563eb',
-    badges: ['Member'],
-    referral_code: 'REF-1001'
-};
+let currentUser = null; // Starts completely logged out (no demo user)
+let pendingUsername = '';
+let verificationCode = '';
 
 const pages = ['home', 'studio', 'contests', 'shop', 'profile'];
 
@@ -21,23 +16,29 @@ const pages = ['home', 'studio', 'contests', 'shop', 'profile'];
 document.addEventListener('DOMContentLoaded', () => {
     setupNavigation();
     updateUI();
+    renderProfile();
     setupEvents();
     fetchPosts();
 });
 
-// --- WORKING VIEW SWITCHER ---
+// --- WORKING NAVIGATION HANDLER ---
 function setupNavigation() {
     const navButtons = document.querySelectorAll('.nav-link');
     
     navButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+            e.preventDefault();
             const targetPage = btn.getAttribute('data-target');
-            switchPage(targetPage);
+            if (targetPage) {
+                switchPage(targetPage);
+            }
         });
     });
 }
 
 function switchPage(pageId) {
+    window.location.hash = pageId;
+
     pages.forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
         if (pageEl) {
@@ -59,22 +60,34 @@ function switchPage(pageId) {
 // --- DATA FETCHING & RENDERING ---
 async function fetchPosts() {
     const container = document.getElementById('posts-container');
+    if (!container) return;
 
-    const { data: posts, error } = await supabase
-        .from('posts')
-        .select('*')
-        .order('created_at', { ascending: false });
+    let postsList = [];
+    try {
+        const { data: posts } = await supabase
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
 
-    const postsList = (posts && posts.length > 0) ? posts : [
-        {
-            id: '1',
-            project_link: 'https://scratch.mit.edu/projects/10421312/',
-            text: 'Check out this sample Scratch project link on our new feed!',
-            author: 'System',
-            author_color: '#2563eb',
-            type: 'General'
+        if (posts && posts.length > 0) {
+            postsList = posts;
         }
-    ];
+    } catch (err) {
+        console.log('Supabase connection note: using local fallback data.');
+    }
+
+    if (postsList.length === 0) {
+        postsList = [
+            {
+                id: '1',
+                project_link: 'https://scratch.mit.edu/projects/10421312/',
+                text: 'Check out this sample Scratch project link on our feed!',
+                author: 'System',
+                author_color: '#2563eb',
+                type: 'General'
+            }
+        ];
+    }
 
     container.innerHTML = postsList.map(p => `
         <article class="post-card">
@@ -91,6 +104,7 @@ async function fetchPosts() {
 function renderProfile() {
     const loggedInView = document.getElementById('profile-logged-in');
     const loggedOutView = document.getElementById('profile-logged-out');
+    if (!loggedInView || !loggedOutView) return;
 
     if (!currentUser) {
         loggedInView.classList.add('hidden');
@@ -102,11 +116,18 @@ function renderProfile() {
     loggedOutView.classList.add('hidden');
 
     const nameEl = document.getElementById('profile-username');
-    nameEl.textContent = currentUser.username;
-    nameEl.style.color = currentUser.color;
+    if (nameEl) {
+        nameEl.textContent = currentUser.username;
+        nameEl.style.color = currentUser.color;
+    }
 
-    document.getElementById('referral-code').textContent = currentUser.referral_code;
-    document.getElementById('profile-badges').innerHTML = (currentUser.badges || []).map(b => `<span class="badge">${b}</span>`).join('');
+    const refEl = document.getElementById('referral-code');
+    if (refEl) refEl.textContent = currentUser.referral_code;
+
+    const badgesEl = document.getElementById('profile-badges');
+    if (badgesEl) {
+        badgesEl.innerHTML = (currentUser.badges || []).map(b => `<span class="badge">${b}</span>`).join('');
+    }
 }
 
 function updateUI() {
@@ -120,86 +141,181 @@ function updateUI() {
     }
 }
 
-// --- EVENT HANDLERS ---
+// --- EVENT HANDLERS & SCRATCH VERIFICATION ---
 function setupEvents() {
-    // Create Post Form Submission
-    document.getElementById('create-post-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const project_link = document.getElementById('post-project-link').value;
-        const text = document.getElementById('post-text').value;
+    // Step 1: Submit Username & Generate Code
+    const usernameForm = document.getElementById('username-form');
+    if (usernameForm) {
+        usernameForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            pendingUsername = document.getElementById('scratch-username-input').value.trim();
+            
+            verificationCode = 'BB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+            document.getElementById('verification-code-display').textContent = verificationCode;
 
-        const newPost = {
-            project_link,
-            text,
-            author: currentUser?.username || 'Guest',
-            author_color: currentUser?.color || '#0f172a',
-            type: 'Post'
+            document.getElementById('verify-step-1').classList.add('hidden');
+            document.getElementById('verify-step-2').classList.remove('hidden');
+        });
+    }
+
+    // Back button for verification view
+    const backBtn = document.getElementById('btn-back-username');
+    if (backBtn) {
+        backBtn.onclick = () => {
+            document.getElementById('verify-step-2').classList.add('hidden');
+            document.getElementById('verify-step-1').classList.remove('hidden');
         };
+    }
 
-        await supabase.from('posts').insert([newPost]);
-        document.getElementById('create-post-form').reset();
-        fetchPosts();
-    });
+    // Step 2: Check Scratch Profile Bio via API
+    const verifyBioBtn = document.getElementById('btn-verify-bio');
+    if (verifyBioBtn) {
+        verifyBioBtn.onclick = async () => {
+            verifyBioBtn.textContent = 'Checking profile...';
+            
+            try {
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(`https://api.scratch.mit.edu/users/${pendingUsername}`)}`;
+                const response = await fetch(proxyUrl);
+                const data = await response.json();
+                
+                if (!data.contents) {
+                    throw new Error('User not found');
+                }
+
+                const userInfo = JSON.parse(data.contents);
+                const bio = (userInfo.profile.bio || '') + ' ' + (userInfo.profile.status || '');
+
+                if (bio.includes(verificationCode)) {
+                    alert('Verification successful! Welcome, ' + pendingUsername);
+                    
+                    currentUser = {
+                        id: 'u-' + pendingUsername.toLowerCase(),
+                        username: pendingUsername,
+                        coins: 100,
+                        color: '#2563eb',
+                        badges: ['Member'],
+                        referral_code: 'REF-' + Math.floor(1000 + Math.random() * 9000)
+                    };
+
+                    document.getElementById('verify-step-2').classList.add('hidden');
+                    document.getElementById('verify-step-1').classList.remove('hidden');
+                    document.getElementById('username-form').reset();
+
+                    updateUI();
+                    renderProfile();
+                    switchPage('profile');
+                } else {
+                    alert('Code not found in your Scratch bio or "What I\'m working on" section yet. Make sure you saved it on Scratch and try again!');
+                }
+            } catch (err) {
+                alert('Could not verify user. Make sure the Scratch username is correct.');
+                console.error(err);
+            } finally {
+                verifyBioBtn.textContent = "I've put it in my bio, Verify Me!";
+            }
+        };
+    }
+
+    // Create Post Form Submission
+    const postForm = document.getElementById('create-post-form');
+    if (postForm) {
+        postForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) return alert('Please log in first!');
+
+            const project_link = document.getElementById('post-project-link').value;
+            const text = document.getElementById('post-text').value;
+
+            const newPost = {
+                project_link,
+                text,
+                author: currentUser.username,
+                author_color: currentUser.color,
+                type: 'Post'
+            };
+
+            try {
+                await supabase.from('posts').insert([newPost]);
+            } catch (err) {}
+
+            postForm.reset();
+            fetchPosts();
+        });
+    }
 
     // Studio Form Submission
-    document.getElementById('studio-ad-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const link = document.getElementById('studio-link').value;
-        const desc = document.getElementById('studio-desc').value;
+    const studioForm = document.getElementById('studio-ad-form');
+    if (studioForm) {
+        studioForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) return alert('Please log in first!');
 
-        await supabase.from('posts').insert([{
-            project_link: link,
-            text: desc,
-            author: currentUser?.username || 'Guest',
-            author_color: currentUser?.color || '#0f172a',
-            type: 'Studio Ad'
-        }]);
+            const link = document.getElementById('studio-link').value;
+            const desc = document.getElementById('studio-desc').value;
 
-        alert('Studio Ad Published!');
-        document.getElementById('studio-ad-form').reset();
-        switchPage('home');
-        fetchPosts();
-    });
+            try {
+                await supabase.from('posts').insert([{
+                    project_link: link,
+                    text: desc,
+                    author: currentUser.username,
+                    author_color: currentUser.color,
+                    type: 'Studio Ad'
+                }]);
+            } catch (err) {}
+
+            alert('Studio Ad Published!');
+            studioForm.reset();
+            switchPage('home');
+            fetchPosts();
+        });
+    }
 
     // Contest Form Submission
-    document.getElementById('contest-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const link = document.getElementById('contest-link').value;
-        const rules = document.getElementById('contest-rules').value;
+    const contestForm = document.getElementById('contest-form');
+    if (contestForm) {
+        contestForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!currentUser) return alert('Please log in first!');
 
-        await supabase.from('posts').insert([{
-            project_link: link,
-            text: rules,
-            author: currentUser?.username || 'Guest',
-            author_color: currentUser?.color || '#0f172a',
-            type: 'Contest'
-        }]);
+            const link = document.getElementById('contest-link').value;
+            const rules = document.getElementById('contest-rules').value;
 
-        alert('Contest Created!');
-        document.getElementById('contest-form').reset();
-        switchPage('home');
-        fetchPosts();
-    });
+            try {
+                await supabase.from('posts').insert([{
+                    project_link: link,
+                    text: rules,
+                    author: currentUser.username,
+                    author_color: currentUser.color,
+                    type: 'Contest'
+                }]);
+            } catch (err) {}
+
+            alert('Contest Created!');
+            contestForm.reset();
+            switchPage('home');
+            fetchPosts();
+        });
+    }
 
     // Shop Purchasing
-    document.getElementById('btn-buy-crimson').onclick = () => purchase('color', '#dc2626', 50);
-    document.getElementById('btn-buy-amber').onclick = () => purchase('color', '#d97706', 50);
-    document.getElementById('btn-buy-verified').onclick = () => purchase('badge', 'Verified', 100);
+    const crimsonBtn = document.getElementById('btn-buy-crimson');
+    if (crimsonBtn) crimsonBtn.onclick = () => purchase('color', '#dc2626', 50);
 
-    // Login / Logout
-    document.getElementById('login-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const username = document.getElementById('login-username').value;
-        currentUser = { id: 'u-' + Date.now(), username, coins: 50, color: '#0f172a', badges: ['Member'], referral_code: 'REF-' + Math.floor(Math.random()*9000) };
-        updateUI();
-        renderProfile();
-    });
+    const amberBtn = document.getElementById('btn-buy-amber');
+    if (amberBtn) amberBtn.onclick = () => purchase('color', '#d97706', 50);
 
-    document.getElementById('logout-btn').onclick = () => {
-        currentUser = null;
-        updateUI();
-        renderProfile();
-    };
+    const verifiedBtn = document.getElementById('btn-buy-verified');
+    if (verifiedBtn) verifiedBtn.onclick = () => purchase('badge', 'Verified', 100);
+
+    // Logout Button
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.onclick = () => {
+            currentUser = null;
+            updateUI();
+            renderProfile();
+        };
+    }
 }
 
 async function purchase(type, value, price) {
@@ -210,11 +326,13 @@ async function purchase(type, value, price) {
     if (type === 'color') currentUser.color = value;
     if (type === 'badge' && !currentUser.badges.includes(value)) currentUser.badges.push(value);
 
-    await supabase.from('users').update({
-        coins: currentUser.coins,
-        color: currentUser.color,
-        badges: currentUser.badges
-    }).eq('username', currentUser.username);
+    try {
+        await supabase.from('users').update({
+            coins: currentUser.coins,
+            color: currentUser.color,
+            badges: currentUser.badges
+        }).eq('username', currentUser.username);
+    } catch (err) {}
 
     alert('Purchase successful!');
     updateUI();
