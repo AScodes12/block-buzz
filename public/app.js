@@ -1,289 +1,218 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+const express = require('express');
+const session = require('express-session');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const sanitizeHtml = require('sanitize-html');
+const path = require('path');
+const crypto = require('crypto');
+const { createClient } = require('@supabase/supabase-js');
+require('dotenv').config();
 
-// --- SUPABASE CONFIGURATION ---
-const SUPABASE_URL = 'https://jslfotggoxgibjhsgfpe.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_bM9jO-5AWPtyF_ME6gbKug_-FN56QxP';
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-// --- APP STATE ---
-let currentUser = null;
-let pendingUsername = '';
-let verificationCode = '';
+app.set('trust proxy', 1);
 
-const pages = ['home', 'studio', 'contests', 'shop', 'profile'];
+const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-// --- INITIALIZATION ---
-document.addEventListener('DOMContentLoaded', () => {
-    setupNavigation();
-    updateUI();
-    renderProfile();
-    setupEvents();
-    fetchPosts();
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(express.json({ limit: '10kb' }));
+
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'super-secret-scratch-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 86400000 }
+}));
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+app.use(express.static(path.join(__dirname, 'public')));
+
+const pendingVerifications = {};
+
+function cleanInput(str) {
+    if (typeof str !== 'string') return '';
+    return sanitizeHtml(str.trim(), { allowedTags: [], allowedAttributes: {} });
+}
+
+function extractScratchId(input) {
+    const clean = cleanInput(input);
+    const match = clean.match(/\d+/);
+    return match ? match[0] : null;
+}
+
+// --- AUTHENTICATION & REFERRALS ---
+app.get('/api/auth/me', async (req, res) => {
+    if (req.session && req.session.username) {
+        const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
+        return res.json({ user: user || null });
+    }
+    res.json({ user: null });
 });
 
-// --- NAVIGATION ---
-function setupNavigation() {
-    const navButtons = document.querySelectorAll('.nav-link');
-    navButtons.forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const targetPage = btn.getAttribute('data-target');
-            if (targetPage) switchPage(targetPage);
-        });
-    });
-}
+app.post('/api/auth/register-request', authLimiter, (req, res) => {
+    const username = cleanInput(req.body.username);
+    const referralCode = cleanInput(req.body.referralCode);
+    if (!username || username.length < 3) return res.status(400).json({ error: 'Invalid username.' });
 
-function switchPage(pageId) {
-    window.location.hash = pageId;
-    pages.forEach(p => {
-        const pageEl = document.getElementById(`page-${p}`);
-        if (pageEl) pageEl.classList.toggle('hidden', p !== pageId);
-    });
-    document.querySelectorAll('.nav-link').forEach(btn => {
-        if (btn.getAttribute('data-target') === pageId) {
-            btn.classList.add('active');
-        } else {
-            btn.classList.remove('active');
-        }
-    });
-    if (pageId === 'profile') renderProfile();
-}
+    const verificationCode = `BlockBuzz-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+    pendingVerifications[username.toLowerCase()] = { code: verificationCode, referralCode, expiresAt: Date.now() + 15 * 60 * 1000 };
+    res.json({ verificationCode });
+});
 
-// --- DATA FETCHING (MATCHING YOUR SCHEMA) ---
-async function fetchPosts() {
-    const container = document.getElementById('posts-container');
-    if (!container) return;
+app.post('/api/auth/verify', authLimiter, async (req, res) => {
+    const username = cleanInput(req.body.username);
+    const key = username.toLowerCase();
+    const pending = pendingVerifications[key];
+
+    if (!pending || pending.expiresAt < Date.now()) return res.status(400).json({ error: 'Session expired.' });
 
     try {
-        const { data: posts, error } = await supabase
-            .from('posts')
-            .select('*')
-            .order('id', { ascending: false });
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${encodeURIComponent(username)}`);
+        if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch profile not found.' });
 
-        if (error) throw error;
+        const scratchData = await scratchRes.json();
+        const bioText = (scratchData.profile.bio + ' ' + scratchData.profile.status).toUpperCase();
 
-        if (posts && posts.length > 0) {
-            container.innerHTML = posts.map(p => `
-                <article class="post-card">
-                    <div class="post-header">
-                        <span class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</span>
-                    </div>
-                    ${p.title ? `<h3>${p.title}</h3>` : ''}
-                    <p class="post-text">${p.caption || ''}</p>
-                    ${p.project_id ? `<a href="https://scratch.mit.edu/projects/${p.project_id}" target="_blank" class="btn primary w-100">Play Scratch Project</a>` : ''}
-                </article>
-            `).join('');
-            return;
-        }
-    } catch (err) {
-        console.log('Database notice: Ensure your tables are created in Supabase.', err);
-    }
+        if (!bioText.includes(pending.code.toUpperCase())) return res.status(400).json({ error: 'Code not found in bio.' });
 
-    container.innerHTML = `<p class="text-center" style="color: gray; padding: 20px;">No posts yet. Be the first to create one!</p>`;
-}
+        let { data: existingUser } = await supabase.from('users').select('*').eq('username', scratchData.username).single();
 
-function renderProfile() {
-    const loggedInView = document.getElementById('profile-logged-in');
-    const loggedOutView = document.getElementById('profile-logged-out');
-    if (!loggedInView || !loggedOutView) return;
-
-    if (!currentUser) {
-        loggedInView.classList.add('hidden');
-        loggedOutView.classList.remove('hidden');
-        return;
-    }
-
-    loggedInView.classList.remove('hidden');
-    loggedOutView.classList.add('hidden');
-
-    const nameEl = document.getElementById('profile-username');
-    if (nameEl) {
-        nameEl.textContent = currentUser.username;
-        nameEl.style.color = currentUser.color;
-    }
-
-    const refEl = document.getElementById('referral-code');
-    if (refEl) refEl.textContent = currentUser.referral_code;
-
-    const badgesEl = document.getElementById('profile-badges');
-    if (badgesEl) {
-        badgesEl.innerHTML = (currentUser.badges || []).map(b => `<span class="badge">${b}</span>`).join('');
-    }
-}
-
-function updateUI() {
-    const coinDisplays = document.querySelectorAll('#user-coins-display');
-    coinDisplays.forEach(el => el.textContent = currentUser ? currentUser.coins : 0);
-
-    const authBtn = document.getElementById('auth-btn');
-    if (authBtn) {
-        authBtn.textContent = currentUser ? 'Profile' : 'Login';
-        authBtn.onclick = () => switchPage('profile');
-    }
-}
-
-// --- EVENTS & SCRATCH VERIFICATION ---
-function setupEvents() {
-    const usernameForm = document.getElementById('username-form');
-    if (usernameForm) {
-        usernameForm.addEventListener('submit', (e) => {
-            e.preventDefault();
-            pendingUsername = document.getElementById('scratch-username-input').value.trim();
-            
-            verificationCode = 'BB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-            document.getElementById('verification-code-display').textContent = verificationCode;
-
-            document.getElementById('verify-step-1').classList.add('hidden');
-            document.getElementById('verify-step-2').classList.remove('hidden');
-        });
-    }
-
-    const backBtn = document.getElementById('btn-back-username');
-    if (backBtn) {
-        backBtn.onclick = () => {
-            document.getElementById('verify-step-2').classList.add('hidden');
-            document.getElementById('verify-step-1').classList.remove('hidden');
-        };
-    }
-
-    const verifyBioBtn = document.getElementById('btn-verify-bio');
-    if (verifyBioBtn) {
-        verifyBioBtn.onclick = async () => {
-            verifyBioBtn.textContent = 'Checking profile...';
-            
-            try {
-                const targetUrl = `https://api.scratch.mit.edu/users/${pendingUsername}`;
-                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-                
-                const response = await fetch(proxyUrl);
-                if (!response.ok) throw new Error('User not found');
-                
-                const userInfo = await response.json();
-                const bio = userInfo.profile ? (userInfo.profile.bio || '') + ' ' + (userInfo.profile.status || '') : '';
-
-                if (bio.includes(verificationCode)) {
-                    // Check or create user in Supabase 'users' table matching your schema
-                    let { data: existingUser } = await supabase
-                        .from('users')
-                        .select('*')
-                        .eq('username', pendingUsername)
-                        .single();
-
-                    if (!existingUser) {
-                        const newUser = {
-                            username: pendingUsername,
-                            coins: 100,
-                            color: '#0f172a',
-                            badges: ['Member'],
-                            referral_code: 'REF-' + Math.floor(1000 + Math.random() * 9000)
-                        };
-                        await supabase.from('users').insert([newUser]);
-                        currentUser = newUser;
-                    } else {
-                        currentUser = existingUser;
-                    }
-
-                    alert('Verification successful! Welcome, ' + pendingUsername);
-
-                    document.getElementById('verify-step-2').classList.add('hidden');
-                    document.getElementById('verify-step-1').classList.remove('hidden');
-                    document.getElementById('username-form').reset();
-
-                    updateUI();
-                    renderProfile();
-                    switchPage('profile');
-                } else {
-                    alert(`Code "${verificationCode}" not found in your Scratch bio yet. Save your bio on Scratch and try again.`);
+        if (!existingUser) {
+            let coins = 0; // NO SIGN UP BONUS
+            if (pending.referralCode) {
+                const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
+                if (referrer) {
+                    await supabase.from('users').update({ coins: referrer.coins + 100 }).eq('username', referrer.username);
+                    coins += 100; // REFERRAL BONUS
                 }
-            } catch (err) {
-                alert('Could not verify profile. Please check that your Scratch username is correct.');
-                console.error(err);
-            } finally {
-                verifyBioBtn.textContent = "I've put it in my bio, Verify Me!";
             }
+
+            const newUser = {
+                username: scratchData.username,
+                pfp: scratchData.profile.images['90x90'],
+                coins: coins,
+                referral_code: `REF-${crypto.randomBytes(2).toString('hex').toUpperCase()}`,
+                color: '#0f172a',
+                badges: [],
+                is_admin: false
+            };
+            await supabase.from('users').insert([newUser]);
+            existingUser = newUser;
+        }
+
+        delete pendingVerifications[key];
+        req.session.username = scratchData.username;
+        res.json({ success: true, user: existingUser });
+    } catch (err) {
+        res.status(500).json({ error: 'Verification error.' });
+    }
+});
+
+// --- POSTS, LIKES, & VIEWS ---
+app.get('/api/posts', async (req, res) => {
+    const { data: posts } = await supabase.from('posts').select('*').order('id', { ascending: false });
+    res.json(posts || []);
+});
+
+app.post('/api/posts', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const projectId = extractScratchId(req.body.scratchInput);
+    const caption = cleanInput(req.body.caption);
+    if (!projectId) return res.status(400).json({ error: 'Invalid Project.' });
+
+    try {
+        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+        const projectRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
+        const projectData = projectRes.ok ? await projectRes.json() : { title: `Scratch Project #${projectId}` };
+
+        const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
+
+        const newPost = {
+            id: Date.now(),
+            project_id: projectId,
+            title: projectData.title,
+            caption,
+            author: user.username,
+            author_pfp: user.pfp,
+            thumbnail: `https://uploads.scratch.mit.edu/projects/thumbnails/${projectId}.png`,
+            likes: [],
+            views: []
         };
+        await supabase.from('posts').insert([newPost]);
+        res.json({ success: true, post: newPost });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
+});
+
+app.post('/api/posts/:id/like', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+    const postId = req.params.id;
+    
+    const { data: post } = await supabase.from('posts').select('likes').eq('id', postId).single();
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    let likes = post.likes || [];
+    if (likes.includes(req.session.username)) {
+        likes = likes.filter(u => u !== req.session.username); // Unlike
+    } else {
+        likes.push(req.session.username); // Like
     }
 
-    // Post Form (Matches your posts table schema)
-    const postForm = document.getElementById('create-post-form');
-    if (postForm) {
-        postForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentUser) return alert('Please log in first!');
+    await supabase.from('posts').update({ likes }).eq('id', postId);
+    res.json({ success: true, likes });
+});
 
-            const projectLinkInput = document.getElementById('post-project-link').value;
-            // Extract project ID from Scratch link if user pasted full URL
-            const projectIdMatch = projectLinkInput.match(/projects\/(\d+)/);
-            const projectId = projectIdMatch ? projectIdMatch[1] : projectLinkInput;
+app.post('/api/posts/:id/view', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+    const postId = req.params.id;
+    
+    const { data: post } = await supabase.from('posts').select('views').eq('id', postId).single();
+    if (!post) return res.status(404).json({ error: 'Post not found' });
 
-            await supabase.from('posts').insert([{
-                id: Date.now(), // Generating a unique bigint ID
-                project_id: projectId,
-                title: document.getElementById('post-title')?.value || 'Untitled Post',
-                caption: document.getElementById('post-text').value,
-                author: currentUser.username,
-                author_color: currentUser.color,
-                author_badges: currentUser.badges
-            }]);
-
-            postForm.reset();
-            fetchPosts();
-        });
+    let views = post.views || [];
+    if (!views.includes(req.session.username)) {
+        views.push(req.session.username);
+        await supabase.from('posts').update({ views }).eq('id', postId);
     }
+    res.json({ success: true, views });
+});
 
-    // Studio Ad Form (Matches studios table schema)
-    const studioForm = document.getElementById('studio-ad-form');
-    if (studioForm) {
-        studioForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentUser) return alert('Please log in first!');
+// --- COMMENTS ---
+app.get('/api/posts/:id/comments', async (req, res) => {
+    const { data: comments } = await supabase.from('comments').select('*').eq('post_id', req.params.id).order('created_at', { ascending: true });
+    res.json(comments || []);
+});
 
-            const studioLink = document.getElementById('studio-link').value;
-            const studioIdMatch = studioLink.match(/studios\/(\d+)/);
-            const studioId = studioIdMatch ? studioIdMatch[1] : studioLink;
+app.post('/api/posts/:id/comments', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+    const text = cleanInput(req.body.text);
+    if (!text) return res.status(400).json({ error: 'Comment cannot be empty.' });
 
-            await supabase.from('studios').insert([{
-                studio_id: studioId,
-                title: document.getElementById('studio-title')?.value || 'Studio Ad',
-                description: document.getElementById('studio-desc').value,
-                advertiser: currentUser.username
-            }]);
+    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
+    
+    const newComment = { post_id: req.params.id, author: user.username, author_pfp: user.pfp, text };
+    const { data } = await supabase.from('comments').insert([newComment]).select().single();
+    res.json({ success: true, comment: data });
+});
 
-            alert('Studio Ad Published!');
-            studioForm.reset();
-            switchPage('home');
-        });
-    }
+// --- MODERATION ---
+app.delete('/api/moderation/posts/:id', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+    
+    const { data: user } = await supabase.from('users').select('is_admin').eq('username', req.session.username).single();
+    if (!user || !user.is_admin) return res.status(403).json({ error: 'Admins only.' });
 
-    // Contest Form (Matches contests table schema)
-    const contestForm = document.getElementById('contest-form');
-    if (contestForm) {
-        contestForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            if (!currentUser) return alert('Please log in first!');
+    await supabase.from('posts').delete().eq('id', req.params.id);
+    res.json({ success: true, message: 'Post deleted by moderator.' });
+});
 
-            const contestLink = document.getElementById('contest-link').value;
-            const contestIdMatch = contestLink.match(/projects\/(\d+)/) || contestLink.match(/studios\/(\d+)/);
-            const contestId = contestIdMatch ? contestIdMatch[1] : contestLink;
-
-            await supabase.from('contests').insert([{
-                contest_id: contestId,
-                description: document.getElementById('contest-rules').value,
-                advertiser: currentUser.username
-            }]);
-
-            alert('Contest Created!');
-            contestForm.reset();
-            switchPage('home');
-        });
-    }
-
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.onclick = () => {
-            currentUser = null;
-            updateUI();
-            renderProfile();
-        };
-    }
-}
+app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.listen(PORT, () => console.log(`Server running securely on port ${PORT}`));
