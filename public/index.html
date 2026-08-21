@@ -24,9 +24,12 @@
         .mt-2 { margin-top: 25px; }
         .w-100 { width: 100%; }
 
-        /* Header Bar */
-        .top-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background-color: var(--bg-sec); border-bottom: 1px solid var(--border); }
+        /* Navbar & Header */
+        .navbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background-color: var(--bg-sec); border-bottom: 1px solid var(--border); }
         .logo { font-size: 20px; font-weight: 700; color: var(--accent); }
+        .nav-links { display: flex; gap: 15px; align-items: center; }
+        .nav-links a { text-decoration: none; color: var(--text-muted); font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
+        .nav-links a:hover, .nav-links a.active { color: var(--accent); background-color: var(--bg-ter); }
         .header-auth { display: flex; align-items: center; gap: 12px; }
 
         /* Buttons & Pills */
@@ -62,9 +65,16 @@
 </head>
 <body>
 
-    <!-- HEADER -->
-    <header class="top-header">
+    <!-- NAVBAR HEADER -->
+    <nav class="navbar">
         <div class="logo">BlockBuzz</div>
+        <div class="nav-links">
+            <a href="#home" id="nav-home">Feed</a>
+            <a href="#studio" id="nav-studio">Advertise Studio</a>
+            <a href="#contests" id="nav-contests">Contests</a>
+            <a href="#shop" id="nav-shop">Shop</a>
+            <a href="#profile" id="nav-profile">Profile</a>
+        </div>
         <div class="header-auth">
             <span class="coin-pill">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><path d="M12 6v12M15 9.5H9.5a1.5 1.5 0 0 0 0 3h5a1.5 1.5 0 0 1 0 3H9"></path></svg>
@@ -72,11 +82,10 @@
             </span>
             <button id="auth-btn" class="btn primary">Login</button>
         </div>
-    </header>
+    </nav>
 
-    <!-- PAGE 1: VIEW & CREATE POSTS -->
+    <!-- PAGE 1: FEED & CREATE POSTS -->
     <section id="page-home" class="page-view container">
-        <!-- Create Post Box directly on View Screen -->
         <div class="panel">
             <h2>Create a Post</h2>
             <form id="create-post-form" class="mt-1">
@@ -90,7 +99,7 @@
             </form>
         </div>
 
-        <h2>Feed</h2>
+        <h2>Posts Feed</h2>
         <div id="posts-container" class="posts-list mt-1">
             <p>Loading posts...</p>
         </div>
