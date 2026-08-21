@@ -33,15 +33,15 @@ function updateAuthUI() {
     if (currentUser) {
         container.innerHTML = `
             <div style="background:#f1f5f9; padding: 6px 12px; border-radius: 20px; font-weight:700; font-size:13px; color:#d97706;">
-                <i class="fa-solid fa-coins"></i> <span id="header-coins">...</span>
+                Coins: <span id="header-coins">...</span>
             </div>
             <span style="font-size:14px; font-weight:600;">${escapeHTML(currentUser)}</span>
-            <button onclick="logout()" class="btn" style="background:#dc2626; padding: 6px 12px; font-size:13px;">Logout</button>
+            <button onclick="logout()" class="btn-outline" style="color:#dc2626; border-color:#dc2626; padding: 6px 12px; font-size:13px;">Logout</button>
         `;
         fetchUserCoins();
     } else {
         container.innerHTML = `
-            <button onclick="startVerificationFlow()" class="btn"><i class="fa-solid fa-right-to-bracket"></i> Scratch Log In</button>
+            <button onclick="startVerificationFlow()" class="btn">Log In</button>
         `;
     }
 }
@@ -62,12 +62,17 @@ async function startVerificationFlow() {
     const username = prompt('Enter your Scratch Username:');
     if (!username || !username.trim()) return;
 
+    const refCode = prompt('Enter a Referral Code (Optional - leave blank if none):');
+
     try {
         const res = await fetch(`${API_BASE_URL}/api/auth/register-request`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ username: username.trim() })
+            body: JSON.stringify({ 
+                username: username.trim(),
+                referralCode: refCode 
+            })
         });
         const data = await res.json();
 
@@ -95,12 +100,27 @@ async function verifyAccount(username) {
         if (data.error) {
             alert(data.error);
         } else {
-            alert('Verified successfully!');
+            if (data.isNewUser) {
+                // Show bonus banner only if a valid referral code was used
+                const banner = document.getElementById('bonus-banner');
+                if (data.bonusApplied) {
+                    banner.style.display = 'block';
+                } else {
+                    banner.style.display = 'none';
+                }
+                document.getElementById('verification-modal').style.display = 'flex';
+            } else {
+                alert(`Welcome back, ${data.username}!`);
+            }
             checkSession();
         }
     } catch (e) {
         alert('Verification request failed.');
     }
+}
+
+function closeModal() {
+    document.getElementById('verification-modal').style.display = 'none';
 }
 
 async function logout() {
@@ -187,10 +207,12 @@ function renderStore() {
     if (!container) return;
 
     const items = [
-        { name: 'Gold Name Glow', price: 100, color: '#eab308' },
+        { name: 'Gold Glow', price: 100, color: '#eab308' },
         { name: 'Neon Purple', price: 150, color: '#a855f7' },
         { name: 'Emerald Green', price: 150, color: '#10b981' },
-        { name: 'Ruby Red', price: 200, color: '#ef4444' }
+        { name: 'Ruby Red', price: 200, color: '#ef4444' },
+        { name: 'Ocean Blue', price: 150, color: '#0ea5e9' },
+        { name: 'Hot Pink', price: 250, color: '#ec4899' }
     ];
 
     container.innerHTML = items.map(item => `
@@ -217,7 +239,7 @@ async function buyItem(color, price) {
     if (data.error) {
         alert(data.error);
     } else {
-        alert('Item purchased successfully!');
+        alert('Item purchased successfully! Your new post header color has been updated.');
         fetchUserCoins();
         loadPosts();
     }
