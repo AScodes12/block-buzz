@@ -27,10 +27,10 @@
             border-bottom: 1px solid var(--border-color);
         }
 
-        .header-container { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; }
+        .header-container { max-width: 900px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
         .logo { font-weight: 800; font-size: 1.25rem; cursor: pointer; display: flex; align-items: center; gap: 8px; }
         .logo i { color: var(--accent-color); }
-        
+
         nav { display: flex; gap: 4px; }
         .nav-link { padding: 8px 14px; border-radius: 8px; font-weight: 600; font-size: 14px; color: var(--text-secondary); background: none; border: none; cursor: pointer; }
         .nav-link.active { color: var(--accent-color); background-color: #eff6ff; }
@@ -61,15 +61,19 @@
     <header>
         <div class="header-container">
             <div class="logo" onclick="switchTab('home')"><i class="fa-solid fa-cubes-stacked"></i> BlockBuzz</div>
+            
             <nav>
-                <button class="nav-link active" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
-                <button class="nav-link" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Account</button>
+                <button class="nav-link active" id="nav-home" onclick="switchTab('home')"><i class="fa-solid fa-house"></i> Home</button>
+                <button class="nav-link" id="nav-store" onclick="switchTab('store')"><i class="fa-solid fa-shop"></i> Store</button>
+                <button class="nav-link" id="nav-account" onclick="switchTab('account')"><i class="fa-solid fa-user"></i> Profile</button>
             </nav>
-            <div id="auth-container"></div>
+
+            <div id="auth-container" style="display: flex; align-items: center; gap: 12px;"></div>
         </div>
     </header>
 
     <main>
+        <!-- Home Section -->
         <section id="home-section" class="tab-content" style="display: block;">
             <div class="create-card">
                 <h3 style="margin-bottom: 10px;"><i class="fa-solid fa-paper-plane" style="color:var(--accent-color);"></i> Share a Scratch Project</h3>
@@ -77,13 +81,25 @@
                     <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID...">
                     <textarea id="post-caption" rows="2" placeholder="Write a short caption..."></textarea>
                     <div style="text-align: right;">
-                        <button onclick="submitPost()" class="btn">Post</button>
+                        <button onclick="submitPost()" class="btn">Post (+10 Coins)</button>
                     </div>
                 </div>
             </div>
             <div id="feed"></div>
         </section>
 
+        <!-- Store Section -->
+        <section id="store-section" class="tab-content">
+            <div class="create-card">
+                <h3><i class="fa-solid fa-store" style="color:var(--accent-color);"></i> Name Color Store</h3>
+                <p style="color:var(--text-secondary); margin-top: 4px; font-size:14px;">Purchase custom username colors for your post headers.</p>
+                <div id="store-items" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px;">
+                    <!-- Store items dynamically injected -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Profile Section -->
         <section id="account-section" class="tab-content">
             <div id="account-profile-content"></div>
         </section>
