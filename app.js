@@ -1,5 +1,6 @@
 const API_BASE_URL = 'https://regional-personally-acting-surgical.trycloudflare.com';
 let currentUser = null;
+let activeVerificationData = null;
 
 function escapeHTML(str) {
     if (!str) return '';
@@ -35,8 +36,68 @@ function updateAuthUI() {
         `;
         fetchUserCoins();
     } else {
-        container.innerHTML = `<button onclick="startVerificationFlow()" class="btn">Log In</button>`;
+        container.innerHTML = `<button onclick="renderLoginPanel()" class="btn">Log In</button>`;
     }
+}
+
+// Native inline login panel instead of popups
+function renderLoginPanel() {
+    switchTab('account');
+    const container = document.getElementById('account-profile-content');
+    container.innerHTML = `
+        <div class="card">
+            <h3 style="margin-bottom: 6px;">Log In / Verify Scratch Account</h3>
+            <p style="font-size:13px; color:var(--text-secondary); margin-bottom: 16px;">Enter your Scratch username to connect your profile securely.</p>
+            <div class="input-group">
+                <input type="text" id="inline-username" placeholder="Scratch Username...">
+                <input type="text" id="inline-ref" placeholder="Referral Code (Optional)...">
+                <button onclick="requestVerificationCode()" class="btn">Get Verification Code</button>
+            </div>
+            <div id="verify-step-2" style="margin-top: 16px;"></div>
+        </div>
+    `;
+}
+
+async function requestVerificationCode() {
+    const username = document.getElementById('inline-username').value.trim();
+    const referralCode = document.getElementById('inline-ref').value.trim();
+    if (!username) return alert('Please enter a username.');
+
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/register-request`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, referralCode })
+        });
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+
+        activeVerificationData = { username, referralCode };
+
+        document.getElementById('verify-step-2').innerHTML = `
+            <div style="background:#f8fafc; border:1px solid var(--border-color); padding:16px; border-radius:var(--radius-md);">
+                <h4 style="margin-bottom:6px; font-size:14px; color:var(--accent-color);">Step 2: Add Code to Bio</h4>
+                <p style="font-size:13px; margin-bottom:8px; color:var(--text-secondary);">Copy this code and paste it anywhere in your Scratch profile Bio or Status:</p>
+                <div style="background:#fff; padding:10px; border:1px dashed var(--accent-color); border-radius:8px; font-family:monospace; font-weight:bold; font-size:15px; margin-bottom:12px; text-align:center;">
+                    ${data.verificationCode}
+                </div>
+                <button onclick="confirmVerification()" class="btn" style="width:100%;">I've Added It to My Bio - Verify Now</button>
+            </div>
+        `;
+    } catch (e) { alert('Network connection error.'); }
+}
+
+async function confirmVerification() {
+    if (!activeVerificationData) return;
+    try {
+        const res = await fetch(`${API_BASE_URL}/api/auth/verify`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: activeVerificationData.username })
+        });
+        const data = await res.json();
+        if (data.error) return alert(data.error);
+
+        alert(`Success! Welcome back, ${data.username}!`);
+        checkSession();
+        switchTab('home');
+    } catch (e) { alert('Verification submission failed.'); }
 }
 
 async function fetchUserCoins() {
@@ -49,45 +110,10 @@ async function fetchUserCoins() {
     } catch (e) { console.error(e); }
 }
 
-async function startVerificationFlow() {
-    const username = prompt('Enter your Scratch Username:');
-    if (!username || !username.trim()) return;
-    const refCode = prompt('Enter a Referral Code (Optional - leave blank if none):');
-
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/register-request`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: username.trim(), referralCode: refCode })
-        });
-        const data = await res.json();
-        if (data.error) return alert(data.error);
-
-        alert(`Step 1: Copy this code:\n\n${data.verificationCode}\n\nStep 2: Paste it into your Scratch Profile Bio.\nStep 3: Click OK to verify.`);
-        verifyAccount(username.trim());
-    } catch (e) { alert('Network error connecting to backend.'); }
-}
-
-async function verifyAccount(username) {
-    try {
-        const res = await fetch(`${API_BASE_URL}/api/auth/verify`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username })
-        });
-        const data = await res.json();
-
-        if (data.error) return alert(data.error);
-        if (data.isNewUser) {
-            document.getElementById('bonus-banner').style.display = data.bonusApplied ? 'block' : 'none';
-            document.getElementById('verification-modal').style.display = 'flex';
-        } else {
-            alert(`Welcome back, ${data.username}!`);
-        }
-        checkSession();
-    } catch (e) { alert('Verification request failed.'); }
-}
-
-function closeModal() { document.getElementById('verification-modal').style.display = 'none'; }
 async function logout() {
     await fetch(`${API_BASE_URL}/api/auth/logout`, { method: 'POST', credentials: 'include' });
     currentUser = null; updateAuthUI(); loadPosts();
+    switchTab('home');
 }
 
 function switchTab(tabName) {
@@ -265,7 +291,9 @@ async function submitStudio() {
 
 async function loadAccountPage() {
     const container = document.getElementById('account-profile-content');
-    if (!currentUser) return container.innerHTML = '<div class="card"><p>Log in to view profile details.</p></div>';
+    if (!currentUser) {
+        return renderLoginPanel();
+    }
 
     const res = await fetch(`${API_BASE_URL}/api/users/${encodeURIComponent(currentUser)}`);
     const data = await res.json();
@@ -274,7 +302,8 @@ async function loadAccountPage() {
         <div class="card">
             <h2 style="color:${escapeHTML(data.color)}; font-size:1.5rem; margin-bottom:8px;">${escapeHTML(data.username)} ${(data.badges || []).join(' ')}</h2>
             <p style="font-size:14px; margin-bottom:4px;">Coins: <strong style="color:#d97706;">${data.coins}</strong></p>
-            <p style="font-size:14px;">Referral Code: <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${escapeHTML(data.referralCode)}</code></p>
+            <p style="font-size:14px; margin-bottom:16px;">Referral Code: <code style="background:#f1f5f9; padding:2px 6px; border-radius:4px;">${escapeHTML(data.referralCode)}</code></p>
+            <button onclick="logout()" class="btn-outline" style="color:#dc2626; border-color:#dc2626;">Log Out of Account</button>
         </div>
     `;
 }
