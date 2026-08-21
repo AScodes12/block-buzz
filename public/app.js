@@ -1,240 +1,185 @@
-let currentUser = null;
-let currentActivePostId = null;
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+// --- DATABASE CONFIGURATION ---
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// --- APP STATE ---
+let currentUser = {
+    id: 'demo-user',
+    username: 'ScratchDev',
+    coins: 150,
+    color: '#2563eb',
+    badges: ['Verified'],
+    referral_code: 'REF-8392'
+};
+
+const pages = ['home', 'create', 'shop', 'profile', 'admin'];
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
-    checkSession();
-    loadPosts();
+    setupRouter();
+    updateUI();
+    setupEvents();
+    fetchPosts();
 });
 
-async function checkSession() {
-    const res = await fetch('/api/auth/me');
-    const data = await res.json();
-    if (data.user) {
-        currentUser = data.user;
-        document.getElementById('auth-btn').innerText = `Logout`;
-        document.getElementById('auth-btn').onclick = logout;
-        document.getElementById('user-coins').classList.remove('hidden');
-        document.getElementById('user-coins').innerText = `🪙 ${currentUser.coins}`;
-        document.getElementById('post-creator').classList.remove('hidden');
-        document.getElementById('profile-btn').classList.remove('hidden');
-    } else {
-        document.getElementById('auth-btn').onclick = () => {
-            document.getElementById('modal-overlay').classList.remove('hidden');
-            document.getElementById('auth-modal').classList.remove('hidden');
-        };
-    }
+// --- MULTI-PAGE ROUTER ---
+function setupRouter() {
+    window.addEventListener('hashchange', handleRoute);
+    handleRoute();
 }
 
-// --- MODALS ---
-function closeModals(e) {
-    if (e && e.target.id === 'modal-overlay') closeAllModals();
-}
-function closeAllModals() {
-    document.getElementById('modal-overlay').classList.add('hidden');
-    document.querySelectorAll('.modal').forEach(m => m.classList.add('hidden'));
-    currentActivePostId = null;
-}
+function handleRoute() {
+    let hash = window.location.hash.replace('#', '') || 'home';
+    if (!pages.includes(hash)) hash = 'home';
 
-function openProfileModal() {
-    if (!currentUser) return;
-    document.getElementById('modal-overlay').classList.remove('hidden');
-    document.getElementById('profile-modal').classList.remove('hidden');
-    document.getElementById('prof-username').textContent = currentUser.username;
-    document.getElementById('prof-ref').textContent = currentUser.referral_code || 'None';
-}
-
-// --- AUTHENTICATION ---
-async function requestLogin() {
-    const username = document.getElementById('auth-username').value;
-    const referralCode = document.getElementById('auth-referral').value;
-    const res = await fetch('/api/auth/register-request', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ username, referralCode })
+    pages.forEach(p => {
+        const pageEl = document.getElementById(`page-${p}`);
+        const navEl = document.getElementById(`nav-${p}`);
+        if (pageEl) pageEl.classList.toggle('hidden', p !== hash);
+        if (navEl) navEl.classList.toggle('active', p === hash);
     });
-    const data = await res.json();
-    if (data.verificationCode) {
-        document.getElementById('auth-step-1').classList.add('hidden');
-        document.getElementById('auth-step-2').classList.remove('hidden');
-        document.getElementById('verification-code-display').innerText = data.verificationCode;
-    } else alert(data.error);
+
+    if (hash === 'profile') renderProfile();
 }
 
-async function verifyLogin() {
-    const username = document.getElementById('auth-username').value;
-    const res = await fetch('/api/auth/verify', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ username })
-    });
-    const data = await res.json();
-    if (data.success) {
-        closeAllModals();
-        location.reload();
-    } else alert(data.error);
-}
+// --- DATA FETCHING & RENDERING ---
+async function fetchPosts() {
+    const feed = document.getElementById('posts-container');
 
-async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    location.reload();
-}
+    const { data: posts } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-// --- FEED & POSTS ---
-async function loadPosts() {
-    const res = await fetch('/api/posts');
-    const posts = await res.json();
-    const container = document.getElementById('posts-container');
-    container.innerHTML = '';
+    const displayPosts = (posts && posts.length > 0) ? posts : [
+        { id: 10421312, title: 'Platformer v2.0', author: 'ScratchDev', author_color: currentUser?.color || '#2563eb', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' },
+        { id: 10421313, title: '3D Engine Demo', author: 'GamerX', author_color: '#0f172a', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' }
+    ];
 
-    posts.forEach(post => {
-        const hasLiked = currentUser && post.likes && post.likes.includes(currentUser.username);
-        const isAdmin = currentUser && currentUser.is_admin;
-        
-        const card = document.createElement('div');
-        card.className = 'post-card';
-        card.innerHTML = `
-            <img src="${post.thumbnail}" alt="thumb" onclick="openPostModal(${post.id}, ${post.project_id})">
+    feed.innerHTML = displayPosts.map(p => `
+        <div class="post-card">
+            <img src="${p.thumbnail}" alt="Thumbnail">
             <div class="post-info">
-                <div class="post-title"></div>
-                <div class="post-author"></div>
-                <div class="post-stats">
-                    <span class="like-btn ${hasLiked ? 'liked' : ''}" onclick="toggleLike(${post.id}, event)">
-                        ❤️ <span class="like-count">${(post.likes || []).length}</span>
-                    </span>
-                    <span>👁️ ${(post.views || []).length}</span>
-                    ${isAdmin ? `<button class="btn danger" onclick="deletePost(${post.id}, event)">🗑️</button>` : ''}
-                </div>
+                <div class="post-title">${p.title}</div>
+                <div class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</div>
             </div>
-        `;
-        
-        card.querySelector('.post-title').textContent = post.title;
-        
-        const authorDiv = card.querySelector('.post-author');
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = post.author;
-        nameSpan.style.color = post.author_color || 'var(--text)';
-        nameSpan.style.fontWeight = 'bold';
-        authorDiv.appendChild(nameSpan);
-        
-        if (post.author_badges) {
-            post.author_badges.forEach(b => {
-                const badgeSpan = document.createElement('span');
-                badgeSpan.className = 'badge';
-                badgeSpan.textContent = b;
-                authorDiv.appendChild(badgeSpan);
-            });
-        }
-        
-        container.appendChild(card);
-    });
+        </div>
+    `).join('');
 }
 
-async function submitPost() {
-    const scratchInput = document.getElementById('post-url').value;
-    const caption = document.getElementById('post-caption').value;
-    const res = await fetch('/api/posts', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ scratchInput, caption })
-    });
-    if (res.ok) {
-        document.getElementById('post-url').value = '';
-        document.getElementById('post-caption').value = '';
-        loadPosts();
-    } else {
-        const err = await res.json();
-        alert(err.error || "Failed to post.");
+function renderProfile() {
+    const loggedInView = document.getElementById('profile-logged-in');
+    const loggedOutView = document.getElementById('profile-logged-out');
+
+    if (!currentUser) {
+        loggedInView.classList.add('hidden');
+        loggedOutView.classList.remove('hidden');
+        return;
     }
-}
 
-// --- INTERACTION (LIKES, VIEWS, MODERATION) ---
-async function toggleLike(postId, event) {
-    event.stopPropagation();
-    if (!currentUser) return alert("Log in first!");
-    const res = await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
-    if (res.ok) loadPosts();
-}
+    loggedInView.classList.remove('hidden');
+    loggedOutView.classList.add('hidden');
 
-async function deletePost(postId, event) {
-    event.stopPropagation();
-    if (!confirm("Delete this post?")) return;
-    const res = await fetch(`/api/moderation/posts/${postId}`, { method: 'DELETE' });
-    if (res.ok) loadPosts();
-}
+    const nameEl = document.getElementById('profile-username');
+    nameEl.textContent = currentUser.username;
+    nameEl.style.color = currentUser.color;
 
-// --- POST DETAILS (MODAL & COMMENTS & LIVE STATS) ---
-async function openPostModal(postId, projectId) {
-    currentActivePostId = postId;
-    document.getElementById('modal-overlay').classList.remove('hidden');
-    document.getElementById('post-modal').classList.remove('hidden');
-    document.getElementById('modal-comments').innerHTML = 'Loading comments...';
+    document.getElementById('referral-code').textContent = currentUser.referral_code;
+    document.getElementById('profile-badges').innerHTML = (currentUser.badges || []).map(b => `<span class="badge">${b}</span>`).join('');
     
-    if (currentUser) fetch(`/api/posts/${postId}/view`, { method: 'POST' }).then(() => loadPosts());
+    document.getElementById('user-posts-container').innerHTML = `
+        <div class="post-card">
+            <img src="https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png" alt="Thumbnail">
+            <div class="post-info">
+                <div class="post-title">Platformer v2.0</div>
+            </div>
+        </div>
+    `;
+}
 
-    try {
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
-        if (scratchRes.ok) {
-            const data = await scratchRes.json();
-            document.getElementById('modal-title').textContent = data.title;
-            document.getElementById('modal-img').src = data.image;
-            document.getElementById('scratch-loves').textContent = `❤️ ${data.stats.loves}`;
-            document.getElementById('scratch-faves').textContent = `⭐ ${data.stats.favorites}`;
-            document.getElementById('scratch-remixes').textContent = `🌀 ${data.stats.remixes}`;
+// --- GLOBAL UI UPDATE ---
+function updateUI() {
+    const coinDisplays = document.querySelectorAll('#user-coins-display');
+    coinDisplays.forEach(el => el.textContent = currentUser ? currentUser.coins : 0);
+
+    const authBtn = document.getElementById('auth-btn');
+    if (authBtn) {
+        authBtn.textContent = currentUser ? 'Profile' : 'Login';
+        authBtn.onclick = () => window.location.hash = 'profile';
+    }
+}
+
+// --- SHOP PURCHASES & DATA MUTATION ---
+async function purchase(type, value, price) {
+    if (!currentUser) return alert('Please login first!');
+    if (currentUser.coins < price) return alert('Not enough coins!');
+
+    currentUser.coins -= price;
+    if (type === 'color') currentUser.color = value;
+    if (type === 'badge' && !currentUser.badges.includes(value)) currentUser.badges.push(value);
+
+    await supabase.from('users').update({
+        coins: currentUser.coins,
+        color: currentUser.color,
+        badges: currentUser.badges
+    }).eq('username', currentUser.username);
+
+    alert('Purchase successful!');
+    updateUI();
+    renderProfile();
+}
+
+// --- EVENT LISTENERS ---
+function setupEvents() {
+    document.getElementById('create-post-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const projectId = document.getElementById('project-id').value;
+        const caption = document.getElementById('caption').value;
+
+        const newPost = {
+            project_id: projectId,
+            title: `Project #${projectId}`,
+            caption,
+            author: currentUser?.username || 'Guest',
+            author_color: currentUser?.color || '#0f172a',
+            thumbnail: `https://uploads.scratch.mit.edu/projects/thumbnails/${projectId}.png`
+        };
+
+        await supabase.from('posts').insert([newPost]);
+
+        alert(`Published project #${projectId}!`);
+        window.location.hash = 'home';
+        fetchPosts();
+    });
+
+    document.getElementById('btn-buy-crimson').onclick = () => purchase('color', '#dc2626', 50);
+    document.getElementById('btn-buy-amber').onclick = () => purchase('color', '#d97706', 50);
+    document.getElementById('btn-buy-verified').onclick = () => purchase('badge', 'Verified', 100);
+    document.getElementById('btn-buy-bughunter').onclick = () => purchase('badge', 'Bug Hunter', 100);
+
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        currentUser = { id: 'u-' + Date.now(), username, coins: 50, color: '#0f172a', badges: [], referral_code: 'REF-' + Math.floor(Math.random()*9000) };
+        updateUI();
+        renderProfile();
+    });
+
+    document.getElementById('logout-btn').onclick = () => {
+        currentUser = null;
+        updateUI();
+        renderProfile();
+    };
+
+    document.getElementById('admin-delete-btn').onclick = async () => {
+        const postId = document.getElementById('delete-post-id').value;
+        if (postId) {
+            await supabase.from('posts').delete().eq('id', postId);
+            alert(`Deleted project ${postId}`);
+            fetchPosts();
         }
-    } catch(e) {}
-
-    loadComments();
-}
-
-async function loadComments() {
-    if (!currentActivePostId) return;
-    const res = await fetch(`/api/posts/${currentActivePostId}/comments`);
-    const comments = await res.json();
-    const box = document.getElementById('modal-comments');
-    box.innerHTML = '';
-    
-    comments.forEach(c => {
-        const div = document.createElement('div');
-        div.className = 'comment';
-        
-        const authorStr = document.createElement('strong');
-        authorStr.textContent = c.author + ": ";
-        
-        const textStr = document.createElement('span');
-        textStr.textContent = c.text;
-        
-        div.appendChild(authorStr);
-        div.appendChild(textStr);
-        box.appendChild(div);
-    });
-}
-
-async function submitComment() {
-    const text = document.getElementById('comment-text').value;
-    if (!text) return;
-    const res = await fetch(`/api/posts/${currentActivePostId}/comments`, {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ text })
-    });
-    if (res.ok) {
-        document.getElementById('comment-text').value = '';
-        loadComments();
-    } else {
-        alert("Must be logged in!");
-    }
-}
-
-// --- STORE LOGIC ---
-async function buyItem(type, value, price) {
-    if (!confirm(`Buy this for ${price} coins?`)) return;
-    const res = await fetch('/api/store/buy', {
-        method: 'POST', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ type, value, price })
-    });
-    const data = await res.json();
-    if (data.success) {
-        alert("Bought successfully!");
-        checkSession();
-        loadPosts();
-    } else {
-        alert(data.error);
-    }
+    };
 }
