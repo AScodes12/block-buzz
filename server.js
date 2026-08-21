@@ -89,7 +89,7 @@ app.post('/api/auth/verify', authLimiter, async (req, res) => {
                 const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
                 if (referrer) {
                     await supabase.from('users').update({ coins: referrer.coins + 10 }).eq('username', referrer.username);
-                    coins += 10; // Referral bonus = 10 coins
+                    coins += 10; // Referral reward = 10 coins
                 }
             }
 
@@ -148,6 +148,8 @@ app.post('/api/posts', async (req, res) => {
             caption,
             author: user.username,
             author_pfp: user.pfp,
+            author_color: user.color,
+            author_badges: user.badges,
             thumbnail: `https://uploads.scratch.mit.edu/projects/thumbnails/${projectId}.png`,
             likes: [],
             views: []
