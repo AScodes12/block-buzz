@@ -1,6 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// --- DATABASE CONFIGURATION ---
+// --- SUPABASE CONFIGURATION ---
 const SUPABASE_URL = 'YOUR_SUPABASE_URL';
 const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -9,13 +9,13 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = {
     id: 'demo-user',
     username: 'ScratchDev',
-    coins: 150,
+    coins: 100,
     color: '#2563eb',
-    badges: ['Verified'],
-    referral_code: 'REF-8392'
+    badges: ['Member'],
+    referral_code: 'REF-1001'
 };
 
-const pages = ['home', 'create', 'shop', 'profile', 'admin'];
+const pages = ['home', 'studio', 'contests', 'shop', 'profile'];
 
 // --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPosts();
 });
 
-// --- MULTI-PAGE ROUTER ---
+// --- ROUTING HANDLER ---
 function setupRouter() {
     window.addEventListener('hashchange', handleRoute);
     handleRoute();
@@ -37,9 +37,7 @@ function handleRoute() {
 
     pages.forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
-        const navEl = document.getElementById(`nav-${p}`);
         if (pageEl) pageEl.classList.toggle('hidden', p !== hash);
-        if (navEl) navEl.classList.toggle('active', p === hash);
     });
 
     if (hash === 'profile') renderProfile();
@@ -47,26 +45,33 @@ function handleRoute() {
 
 // --- DATA FETCHING & RENDERING ---
 async function fetchPosts() {
-    const feed = document.getElementById('posts-container');
+    const container = document.getElementById('posts-container');
 
-    const { data: posts } = await supabase
+    const { data: posts, error } = await supabase
         .from('posts')
         .select('*')
         .order('created_at', { ascending: false });
 
-    const displayPosts = (posts && posts.length > 0) ? posts : [
-        { id: 10421312, title: 'Platformer v2.0', author: 'ScratchDev', author_color: currentUser?.color || '#2563eb', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' },
-        { id: 10421313, title: '3D Engine Demo', author: 'GamerX', author_color: '#0f172a', thumbnail: 'https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png' }
+    const postsList = (posts && posts.length > 0) ? posts : [
+        {
+            id: '1',
+            title: 'Welcome to the new BlockBuzz Feed!',
+            text: 'Posts are now displayed one per row with full text content. Create new posts using the box above.',
+            author: 'System',
+            author_color: '#2563eb',
+            type: 'General'
+        }
     ];
 
-    feed.innerHTML = displayPosts.map(p => `
-        <div class="post-card">
-            <img src="${p.thumbnail}" alt="Thumbnail">
-            <div class="post-info">
-                <div class="post-title">${p.title}</div>
-                <div class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</div>
+    container.innerHTML = postsList.map(p => `
+        <article class="post-card">
+            ${p.type ? `<span class="post-tag">${p.type}</span>` : ''}
+            <div class="post-header">
+                <span class="post-author" style="color: ${p.author_color || 'inherit'}">${p.author}</span>
             </div>
-        </div>
+            <h3 class="post-title">${p.title}</h3>
+            <p class="post-text">${p.text}</p>
+        </article>
     `).join('');
 }
 
@@ -89,18 +94,8 @@ function renderProfile() {
 
     document.getElementById('referral-code').textContent = currentUser.referral_code;
     document.getElementById('profile-badges').innerHTML = (currentUser.badges || []).map(b => `<span class="badge">${b}</span>`).join('');
-    
-    document.getElementById('user-posts-container').innerHTML = `
-        <div class="post-card">
-            <img src="https://uploads.scratch.mit.edu/projects/thumbnails/10421312.png" alt="Thumbnail">
-            <div class="post-info">
-                <div class="post-title">Platformer v2.0</div>
-            </div>
-        </div>
-    `;
 }
 
-// --- GLOBAL UI UPDATE ---
 function updateUI() {
     const coinDisplays = document.querySelectorAll('#user-coins-display');
     coinDisplays.forEach(el => el.textContent = currentUser ? currentUser.coins : 0);
@@ -112,7 +107,89 @@ function updateUI() {
     }
 }
 
-// --- SHOP PURCHASES & DATA MUTATION ---
+// --- EVENT HANDLERS ---
+function setupEvents() {
+    // Create Post Form Submission
+    document.getElementById('create-post-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('post-title').value;
+        const text = document.getElementById('post-text').value;
+
+        const newPost = {
+            title,
+            text,
+            author: currentUser?.username || 'Guest',
+            author_color: currentUser?.color || '#0f172a',
+            type: 'Post'
+        };
+
+        await supabase.from('posts').insert([newPost]);
+        document.getElementById('create-post-form').reset();
+        fetchPosts();
+    });
+
+    // Studio Form Submission
+    document.getElementById('studio-ad-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('studio-title').value;
+        const link = document.getElementById('studio-link').value;
+        const desc = document.getElementById('studio-desc').value;
+
+        await supabase.from('posts').insert([{
+            title: `Studio Ad: ${title}`,
+            text: `${desc}\n\nLink: ${link}`,
+            author: currentUser?.username || 'Guest',
+            author_color: currentUser?.color || '#0f172a',
+            type: 'Studio'
+        }]);
+
+        alert('Studio Ad Published!');
+        document.getElementById('studio-ad-form').reset();
+        window.location.hash = 'home';
+        fetchPosts();
+    });
+
+    // Contest Form Submission
+    document.getElementById('contest-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = document.getElementById('contest-title').value;
+        const rules = document.getElementById('contest-rules').value;
+
+        await supabase.from('posts').insert([{
+            title: `Contest: ${title}`,
+            text: rules,
+            author: currentUser?.username || 'Guest',
+            author_color: currentUser?.color || '#0f172a',
+            type: 'Contest'
+        }]);
+
+        alert('Contest Created!');
+        document.getElementById('contest-form').reset();
+        window.location.hash = 'home';
+        fetchPosts();
+    });
+
+    // Shop Purchasing
+    document.getElementById('btn-buy-crimson').onclick = () => purchase('color', '#dc2626', 50);
+    document.getElementById('btn-buy-amber').onclick = () => purchase('color', '#d97706', 50);
+    document.getElementById('btn-buy-verified').onclick = () => purchase('badge', 'Verified', 100);
+
+    // Login / Logout
+    document.getElementById('login-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const username = document.getElementById('login-username').value;
+        currentUser = { id: 'u-' + Date.now(), username, coins: 50, color: '#0f172a', badges: ['Member'], referral_code: 'REF-' + Math.floor(Math.random()*9000) };
+        updateUI();
+        renderProfile();
+    });
+
+    document.getElementById('logout-btn').onclick = () => {
+        currentUser = null;
+        updateUI();
+        renderProfile();
+    };
+}
+
 async function purchase(type, value, price) {
     if (!currentUser) return alert('Please login first!');
     if (currentUser.coins < price) return alert('Not enough coins!');
@@ -130,56 +207,4 @@ async function purchase(type, value, price) {
     alert('Purchase successful!');
     updateUI();
     renderProfile();
-}
-
-// --- EVENT LISTENERS ---
-function setupEvents() {
-    document.getElementById('create-post-form').addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const projectId = document.getElementById('project-id').value;
-        const caption = document.getElementById('caption').value;
-
-        const newPost = {
-            project_id: projectId,
-            title: `Project #${projectId}`,
-            caption,
-            author: currentUser?.username || 'Guest',
-            author_color: currentUser?.color || '#0f172a',
-            thumbnail: `https://uploads.scratch.mit.edu/projects/thumbnails/${projectId}.png`
-        };
-
-        await supabase.from('posts').insert([newPost]);
-
-        alert(`Published project #${projectId}!`);
-        window.location.hash = 'home';
-        fetchPosts();
-    });
-
-    document.getElementById('btn-buy-crimson').onclick = () => purchase('color', '#dc2626', 50);
-    document.getElementById('btn-buy-amber').onclick = () => purchase('color', '#d97706', 50);
-    document.getElementById('btn-buy-verified').onclick = () => purchase('badge', 'Verified', 100);
-    document.getElementById('btn-buy-bughunter').onclick = () => purchase('badge', 'Bug Hunter', 100);
-
-    document.getElementById('login-form').addEventListener('submit', (e) => {
-        e.preventDefault();
-        const username = document.getElementById('login-username').value;
-        currentUser = { id: 'u-' + Date.now(), username, coins: 50, color: '#0f172a', badges: [], referral_code: 'REF-' + Math.floor(Math.random()*9000) };
-        updateUI();
-        renderProfile();
-    });
-
-    document.getElementById('logout-btn').onclick = () => {
-        currentUser = null;
-        updateUI();
-        renderProfile();
-    };
-
-    document.getElementById('admin-delete-btn').onclick = async () => {
-        const postId = document.getElementById('delete-post-id').value;
-        if (postId) {
-            await supabase.from('posts').delete().eq('id', postId);
-            alert(`Deleted project ${postId}`);
-            fetchPosts();
-        }
-    };
 }
