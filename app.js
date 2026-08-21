@@ -1,10 +1,19 @@
-const API_BASE_URL = 'https://regional-personally-acting-surgical.trycloudflare.com';
+const API_BASE_URL = ''; // Relative path prevents network/tunnel errors
 let currentUser = null;
 let activeVerificationData = null;
 
 function escapeHTML(str) {
     if (!str) return '';
     return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' })[m]);
+}
+
+function showMsg(elementId, text, isError = false) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = text;
+    el.className = `inline-msg ${isError ? 'error' : 'success'}`;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 5000);
 }
 
 document.addEventListener('DOMContentLoaded', () => checkSession());
@@ -40,7 +49,6 @@ function updateAuthUI() {
     }
 }
 
-// Native inline login panel instead of popups
 function renderLoginPanel() {
     switchTab('account');
     const container = document.getElementById('account-profile-content');
@@ -52,6 +60,7 @@ function renderLoginPanel() {
                 <input type="text" id="inline-username" placeholder="Scratch Username...">
                 <input type="text" id="inline-ref" placeholder="Referral Code (Optional)...">
                 <button onclick="requestVerificationCode()" class="btn">Get Verification Code</button>
+                <div id="login-msg" class="inline-msg"></div>
             </div>
             <div id="verify-step-2" style="margin-top: 16px;"></div>
         </div>
@@ -61,14 +70,14 @@ function renderLoginPanel() {
 async function requestVerificationCode() {
     const username = document.getElementById('inline-username').value.trim();
     const referralCode = document.getElementById('inline-ref').value.trim();
-    if (!username) return alert('Please enter a username.');
+    if (!username) return showMsg('login-msg', 'Please enter a username.', true);
 
     try {
         const res = await fetch(`${API_BASE_URL}/api/auth/register-request`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, referralCode })
         });
         const data = await res.json();
-        if (data.error) return alert(data.error);
+        if (data.error) return showMsg('login-msg', data.error, true);
 
         activeVerificationData = { username, referralCode };
 
@@ -80,9 +89,10 @@ async function requestVerificationCode() {
                     ${data.verificationCode}
                 </div>
                 <button onclick="confirmVerification()" class="btn" style="width:100%;">I've Added It to My Bio - Verify Now</button>
+                <div id="verify-msg" class="inline-msg" style="margin-top:10px;"></div>
             </div>
         `;
-    } catch (e) { alert('Network connection error.'); }
+    } catch (e) { showMsg('login-msg', 'Network connection error.', true); }
 }
 
 async function confirmVerification() {
@@ -92,12 +102,11 @@ async function confirmVerification() {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: activeVerificationData.username })
         });
         const data = await res.json();
-        if (data.error) return alert(data.error);
+        if (data.error) return showMsg('verify-msg', data.error, true);
 
-        alert(`Success! Welcome back, ${data.username}!`);
         checkSession();
         switchTab('home');
-    } catch (e) { alert('Verification submission failed.'); }
+    } catch (e) { showMsg('verify-msg', 'Verification submission failed.', true); }
 }
 
 async function fetchUserCoins() {
@@ -153,7 +162,7 @@ async function loadPosts() {
 }
 
 async function submitPost() {
-    if (!currentUser) return alert('Log in to share a project.');
+    if (!currentUser) return showMsg('home-msg', 'Log in to share a project.', true);
     const scratchInput = document.getElementById('scratch-input').value;
     const caption = document.getElementById('post-caption').value;
 
@@ -162,12 +171,12 @@ async function submitPost() {
         body: JSON.stringify({ scratchInput, caption })
     });
     const data = await res.json();
-    if (data.error) return alert(data.error);
+    if (data.error) return showMsg('home-msg', data.error, true);
     
     document.getElementById('scratch-input').value = '';
     document.getElementById('post-caption').value = '';
     loadPosts();
-    alert('Project posted successfully!');
+    showMsg('home-msg', 'Project posted successfully!');
 }
 
 function renderStore() {
@@ -198,14 +207,14 @@ function renderStore() {
 }
 
 async function buyItem(type, value, price) {
-    if (!currentUser) return alert('Log in to use the store.');
+    if (!currentUser) return showMsg('store-msg', 'Log in to use the store.', true);
     const res = await fetch(`${API_BASE_URL}/api/store/buy`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
         body: JSON.stringify({ type, value, price })
     });
     const data = await res.json();
-    if (data.error) alert(data.error);
-    else { alert('Purchased successfully!'); fetchUserCoins(); }
+    if (data.error) showMsg('store-msg', data.error, true);
+    else { showMsg('store-msg', 'Purchased successfully!'); fetchUserCoins(); }
 }
 
 async function loadContests() {
@@ -229,7 +238,7 @@ async function loadContests() {
 }
 
 async function submitContest() {
-    if (!currentUser) return alert('Log in to advertise a contest.');
+    if (!currentUser) return showMsg('contest-msg', 'Log in to advertise a contest.', true);
     const contestInput = document.getElementById('contest-input').value;
     const description = document.getElementById('contest-desc').value;
 
@@ -238,12 +247,12 @@ async function submitContest() {
         body: JSON.stringify({ contestInput, description })
     });
     const data = await res.json();
-    if (data.error) return alert(data.error);
+    if (data.error) return showMsg('contest-msg', data.error, true);
 
     document.getElementById('contest-input').value = '';
     document.getElementById('contest-desc').value = '';
     loadContests();
-    alert('Contest advertised successfully!');
+    showMsg('contest-msg', 'Contest advertised successfully!');
 }
 
 async function loadStudios() {
@@ -272,7 +281,7 @@ async function loadStudios() {
 }
 
 async function submitStudio() {
-    if (!currentUser) return alert('Log in to advertise a studio.');
+    if (!currentUser) return showMsg('studio-msg', 'Log in to advertise a studio.', true);
     const studioInput = document.getElementById('studio-input').value;
     const description = document.getElementById('studio-desc').value;
 
@@ -281,12 +290,12 @@ async function submitStudio() {
         body: JSON.stringify({ studioInput, description })
     });
     const data = await res.json();
-    if (data.error) return alert(data.error);
+    if (data.error) return showMsg('studio-msg', data.error, true);
 
     document.getElementById('studio-input').value = '';
     document.getElementById('studio-desc').value = '';
     loadStudios();
-    alert('Studio advertised successfully!');
+    showMsg('studio-msg', 'Studio advertised successfully!');
 }
 
 async function loadAccountPage() {
