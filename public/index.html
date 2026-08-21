@@ -27,13 +27,13 @@
         /* Navbar & Header */
         .navbar { display: flex; justify-content: space-between; align-items: center; padding: 15px 30px; background-color: var(--bg-sec); border-bottom: 1px solid var(--border); }
         .logo { font-size: 20px; font-weight: 700; color: var(--accent); }
-        .nav-links { display: flex; gap: 15px; align-items: center; }
-        .nav-links a { text-decoration: none; color: var(--text-muted); font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
-        .nav-links a:hover, .nav-links a.active { color: var(--accent); background-color: var(--bg-ter); }
+        .nav-links { display: flex; gap: 10px; align-items: center; }
+        .nav-link { text-decoration: none; color: var(--text-muted); font-weight: 600; font-size: 14px; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: all 0.2s; background: transparent; border: none; }
+        .nav-link:hover, .nav-link.active { color: var(--accent); background-color: var(--bg-ter); }
         .header-auth { display: flex; align-items: center; gap: 12px; }
 
         /* Buttons & Pills */
-        .btn { border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; }
+        .btn { border: none; padding: 10px 18px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px; transition: background 0.2s; text-decoration: none; display: inline-block; text-align: center; }
         .btn.primary { background-color: var(--accent); color: white; }
         .btn.primary:hover { background-color: var(--accent-hover); }
         .btn.secondary { background-color: var(--bg-ter); color: var(--text); border: 1px solid var(--border); }
@@ -55,8 +55,7 @@
         .post-card { background: var(--bg-sec); border-radius: 10px; border: 1px solid var(--border); padding: 20px; }
         .post-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
         .post-author { font-weight: 600; font-size: 14px; }
-        .post-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
-        .post-text { font-size: 15px; line-height: 1.5; color: var(--text); white-space: pre-line; }
+        .post-text { font-size: 15px; line-height: 1.5; color: var(--text); white-space: pre-line; margin-bottom: 15px; }
         .post-tag { display: inline-block; background: var(--bg-ter); border: 1px solid var(--border); padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; margin-bottom: 10px; color: var(--accent); }
 
         .badge { background: var(--bg-ter); border: 1px solid var(--border); padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 6px; }
@@ -69,11 +68,11 @@
     <nav class="navbar">
         <div class="logo">BlockBuzz</div>
         <div class="nav-links">
-            <a href="#home" id="nav-home">Feed</a>
-            <a href="#studio" id="nav-studio">Advertise Studio</a>
-            <a href="#contests" id="nav-contests">Contests</a>
-            <a href="#shop" id="nav-shop">Shop</a>
-            <a href="#profile" id="nav-profile">Profile</a>
+            <button class="nav-link active" data-target="home">Feed</button>
+            <button class="nav-link" data-target="studio">Advertise Studio</button>
+            <button class="nav-link" data-target="contests">Contests</button>
+            <button class="nav-link" data-target="shop">Shop</button>
+            <button class="nav-link" data-target="profile">Profile</button>
         </div>
         <div class="header-auth">
             <span class="coin-pill">
@@ -90,10 +89,10 @@
             <h2>Create a Post</h2>
             <form id="create-post-form" class="mt-1">
                 <div class="input-group">
-                    <input type="text" id="post-title" required placeholder="Post Title">
+                    <input type="url" id="post-project-link" required placeholder="Scratch Project Link (e.g., https://scratch.mit.edu/projects/12345678/)">
                 </div>
                 <div class="input-group">
-                    <textarea id="post-text" rows="4" required placeholder="What's on your mind? Write your post here..."></textarea>
+                    <textarea id="post-text" rows="4" required placeholder="Write your post or description here..."></textarea>
                 </div>
                 <button type="submit" class="btn primary w-100">Publish Post</button>
             </form>
@@ -112,12 +111,8 @@
             <p class="subtitle">Promote your Scratch studio to the community.</p>
             <form id="studio-ad-form">
                 <div class="input-group">
-                    <label>Studio Title</label>
-                    <input type="text" id="studio-title" required placeholder="My Awesome Studio">
-                </div>
-                <div class="input-group">
-                    <label>Studio Link / ID</label>
-                    <input type="text" id="studio-link" required placeholder="https://scratch.mit.edu/studios/1234567">
+                    <label>Studio Link</label>
+                    <input type="url" id="studio-link" required placeholder="https://scratch.mit.edu/studios/1234567/">
                 </div>
                 <div class="input-group">
                     <label>Description</label>
@@ -135,8 +130,8 @@
             <p class="subtitle">Create competitions or browse active community contests.</p>
             <form id="contest-form">
                 <div class="input-group">
-                    <label>Contest Title</label>
-                    <input type="text" id="contest-title" required placeholder="Summer Coding Contest">
+                    <label>Contest Project / Link</label>
+                    <input type="url" id="contest-link" required placeholder="https://scratch.mit.edu/projects/...">
                 </div>
                 <div class="input-group">
                     <label>Rules & Details</label>
