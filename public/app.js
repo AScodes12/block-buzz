@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchPosts();
 });
 
-// --- ROUTING HANDLER ---
+// --- FIXED ROUTING HANDLER ---
 function setupRouter() {
     window.addEventListener('hashchange', handleRoute);
     handleRoute();
@@ -37,7 +37,19 @@ function handleRoute() {
 
     pages.forEach(p => {
         const pageEl = document.getElementById(`page-${p}`);
-        if (pageEl) pageEl.classList.toggle('hidden', p !== hash);
+        const navEl = document.getElementById(`nav-${p}`);
+
+        if (pageEl) {
+            pageEl.classList.toggle('hidden', p !== hash);
+        }
+        
+        if (navEl) {
+            if (p === hash) {
+                navEl.classList.add('active');
+            } else {
+                navEl.classList.remove('active');
+            }
+        }
     });
 
     if (hash === 'profile') renderProfile();
@@ -55,8 +67,8 @@ async function fetchPosts() {
     const postsList = (posts && posts.length > 0) ? posts : [
         {
             id: '1',
-            title: 'Welcome to the new BlockBuzz Feed!',
-            text: 'Posts are now displayed one per row with full text content. Create new posts using the box above.',
+            title: 'Welcome to the BlockBuzz Feed!',
+            text: 'Posts are rendered one per row with complete text support.',
             author: 'System',
             author_color: '#2563eb',
             type: 'General'
