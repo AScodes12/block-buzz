@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post a Project</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">My App</div>
+        <div class="nav-links">
+            <a href="index.html">Home</a>
+            <a href="create.html">Post Project</a>
+            <a href="shop.html">Shop</a>
+            <a href="profile.html">Profile</a>
+        </div>
+    </nav>
+
+    <main class="container">
+        <h1>Share Your Project</h1>
+        <form id="create-post-form">
+            <label for="title">Project Title:</label>
+            <input type="text" id="title" required placeholder="My Awesome Game">
+
+            <label for="project-id">Project ID/Link:</label>
+            <input type="text" id="project-id" required>
+
+            <label for="caption">Description:</label>
+            <textarea id="caption" rows="4" required placeholder="Tell everyone about it..."></textarea>
+
+            <button type="submit" class="submit-btn">Post Project</button>
+        </form>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>
