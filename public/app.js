@@ -44,7 +44,7 @@ function updateAuthUI() {
         authContainer.innerHTML = `
             <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;">
                 <div class="avatar-wrapper"><img src="${currentUser.pfp || ''}" alt="PFP"></div>
-                <span style="color: ${currentUser.color || 'inherit'}">${currentUser.username}</span>
+                <span>${currentUser.username}</span>
                 <span style="background: #fef3c7; color: #d97706; padding: 2px 8px; border-radius: 12px; font-size: 12px;">🪙 ${currentUser.coins}</span>
             </div>
         `;
@@ -107,7 +107,7 @@ function renderProfile() {
                 <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
                     <div class="avatar-wrapper" style="width: 60px; height: 60px;"><img src="${currentUser.pfp}" alt="PFP"></div>
                     <div>
-                        <h2 style="color: ${currentUser.color || 'inherit'}">${currentUser.username}</h2>
+                        <h2>${currentUser.username}</h2>
                         <p style="color: var(--text-secondary); font-size: 13px;">Coins: 🪙 ${currentUser.coins}</p>
                         <div style="display: flex; gap: 6px; margin-top: 6px;">
                             ${(currentUser.badges || []).map(b => `<span style="background: #eff6ff; color: var(--accent-color); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">${b}</span>`).join('')}
@@ -193,30 +193,16 @@ function resetVerification() {
     pendingVerification = null;
 }
 
-// Bypasses Render cloud server IP block by fetching directly from the user's browser
+// Routes verification safely through your server backend to bypass CORS blocks
 async function confirmVerification() {
     const msg = document.getElementById('account-msg-2');
     if (!pendingVerification) return showMsg(msg, 'Session expired. Restart registration.', 'error');
 
     try {
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${pendingVerification}`);
-        if (!scratchRes.ok) {
-            return showMsg(msg, 'Could not connect to Scratch API. Check username spelling.', 'error');
-        }
-        
-        const scratchData = await scratchRes.json();
-        const bio = scratchData.profile?.bio || '';
-        const status = scratchData.profile?.status || '';
-
-        const res = await fetch('/api/auth/verify-client', {
+        const res = await fetch('/api/auth/verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-                username: pendingVerification, 
-                bio, 
-                status, 
-                pfp: scratchData.profile?.images?.['90x90'] || '' 
-            })
+            body: JSON.stringify({ username: pendingVerification })
         });
         
         const data = await res.json();
@@ -273,7 +259,7 @@ async function logout() {
     renderProfile();
 }
 
-// --- POSTS, FEED, VIEWS & COMMENTS ---
+// --- POSTS & FEED ---
 async function submitPost() {
     const scratchInputEl = document.getElementById('scratch-input');
     const captionEl = document.getElementById('post-caption');
@@ -322,7 +308,6 @@ async function fetchPosts() {
         let htmlContent = '';
         for (const p of posts) {
             const isLiked = currentUser && p.likes && p.likes.includes(currentUser.username);
-            const canDelete = currentUser && (currentUser.is_admin || currentUser.username === p.author);
             const viewCount = p.views ? p.views.length : 0;
             const likeCount = p.likes ? p.likes.length : 0;
 
@@ -333,7 +318,7 @@ async function fetchPosts() {
                 if (comments && comments.length > 0) {
                     commentsHtml = comments.map(c => `
                         <div style="background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; margin-bottom: 4px;">
-                            <strong style="color: ${c.author_color || 'inherit'}">${c.author}:</strong> ${c.text}
+                            <strong>${c.author}:</strong> ${c.text}
                         </div>
                     `).join('');
                 } else {
@@ -348,15 +333,16 @@ async function fetchPosts() {
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <div class="avatar-wrapper" style="width: 28px; height: 28px;"><img src="${p.author_pfp || ''}" alt=""></div>
-                            <span style="font-weight: 600; font-size: 13px; color: ${p.author_color || 'inherit'}">${p.author}</span>
+                            <span style="font-weight: 600; font-size: 13px;">${p.author}</span>
                         </div>
-                        ${canDelete ? `<button onclick="deletePost('${p.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:12px;">Delete</button>` : ''}
                     </div>
                     
                     <h3 style="font-size: 16px; margin-bottom: 6px;">${p.title}</h3>
                     <p style="font-size: 14px; color: var(--text-primary); margin-bottom: 10px; white-space: pre-wrap; line-height: 1.4;">${p.caption || ''}</p>
                     
-                    <img src="${p.thumbnail}" class="project-thumb" alt="Thumbnail" style="width: 100%; border-radius: 8px; margin-bottom: 10px;">
+                    <a href="${p.scratch_link}" target="_blank">
+                        <img src="${p.thumbnail}" class="project-thumb" alt="Thumbnail" style="width: 100%; border-radius: 8px; margin-bottom: 10px;">
+                    </a>
                     
                     <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px;">
                         <button onclick="toggleLike('${p.id}')" class="btn-outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-color: ${isLiked ? '#dc2626' : 'var(--border-color)'}; color: ${isLiked ? '#dc2626' : 'var(--text-primary)'}; background: ${isLiked ? '#fee2e2' : 'transparent'};">
@@ -425,155 +411,93 @@ async function toggleLike(postId) {
     fetchPosts();
 }
 
-async function deletePost(postId) {
-    if (!confirm('Delete this post?')) return;
-    await fetch(`/api/moderation/posts/${postId}`, { method: 'DELETE' });
-    fetchPosts();
-}
-
-// --- CONTESTS FEATURE ---
+// --- CONTESTS & STUDIOS ---
 async function fetchContests() {
     const feed = document.getElementById('contests-feed');
     if (!feed) return;
-
     try {
         const res = await fetch('/api/contests');
         const contests = await res.json();
-
         if (!contests || contests.length === 0) {
             feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No active contests advertised yet.</div>`;
             return;
         }
-
         feed.innerHTML = contests.map(c => `
             <div class="card" style="margin-bottom: 16px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <div class="avatar-wrapper" style="width: 24px; height: 24px;"><img src="${c.author_pfp || ''}" alt=""></div>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Hosted by <strong>${c.author}</strong></span>
-                </div>
                 <h3 style="font-size: 16px; margin-bottom: 4px;">${c.title}</h3>
                 <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 8px;">${c.description || ''}</p>
-                ${c.prize ? `<p style="font-size: 13px; color: #d97706; font-weight: bold; margin-bottom: 8px;">🏆 Prize: ${c.prize}</p>` : ''}
                 <a href="${c.scratch_link}" target="_blank" class="btn" style="display: inline-block; text-decoration: none; font-size: 13px; padding: 6px 12px;">Visit Contest on Scratch</a>
             </div>
         `).join('');
-    } catch (err) {
-        console.error('Failed to load contests', err);
-    }
+    } catch (e) { console.error(e); }
 }
 
 async function submitContest() {
-    const titleEl = document.getElementById('contest-title');
-    const descEl = document.getElementById('contest-desc');
-    const prizeEl = document.getElementById('contest-prize');
-    const linkEl = document.getElementById('contest-link') || document.getElementById('contest-scratch-link');
-
-    const title = titleEl ? titleEl.value.trim() : '';
-    const description = descEl ? descEl.value.trim() : '';
-    const prize = prizeEl ? prizeEl.value.trim() : '';
-    const scratchLink = linkEl ? linkEl.value.trim() : '';
+    const title = document.getElementById('contest-title')?.value.trim();
+    const description = document.getElementById('contest-desc')?.value.trim();
+    const prize = document.getElementById('contest-prize')?.value.trim();
+    const scratchLink = document.getElementById('contest-link')?.value.trim();
     const msg = document.getElementById('contest-msg');
 
     if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
-    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
+    if (!title || !scratchLink) return showMsg(msg, 'Title and link required.', 'error');
 
-    try {
-        const res = await fetch('/api/contests', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, prize, scratchLink })
-        });
-
-        if (res.ok) {
-            if (titleEl) titleEl.value = '';
-            if (descEl) descEl.value = '';
-            if (prizeEl) prizeEl.value = '';
-            if (linkEl) linkEl.value = '';
-            showMsg(msg, 'Contest advertised successfully!', 'success');
-            fetchContests();
-        } else {
-            const data = await res.json();
-            showMsg(msg, data.error, 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Failed to publish contest.', 'error');
+    const res = await fetch('/api/contests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, prize, scratchLink })
+    });
+    if (res.ok) {
+        showMsg(msg, 'Contest published!', 'success');
+        fetchContests();
     }
 }
 
-// --- STUDIOS FEATURE ---
 async function fetchStudios() {
     const feed = document.getElementById('studios-feed');
     if (!feed) return;
-
     try {
         const res = await fetch('/api/studios');
         const studios = await res.json();
-
         if (!studios || studios.length === 0) {
             feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No studios advertised yet.</div>`;
             return;
         }
-
         feed.innerHTML = studios.map(s => `
             <div class="card" style="margin-bottom: 16px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <div class="avatar-wrapper" style="width: 24px; height: 24px;"><img src="${s.author_pfp || ''}" alt=""></div>
-                    <span style="font-size: 12px; color: var(--text-secondary);">Advertised by <strong>${s.author}</strong></span>
-                </div>
                 <h3 style="font-size: 16px; margin-bottom: 4px;">${s.title}</h3>
                 <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 10px;">${s.description || ''}</p>
                 <a href="${s.scratch_link}" target="_blank" class="btn" style="display: inline-block; text-decoration: none; font-size: 13px; padding: 6px 12px;">Explore Studio on Scratch</a>
             </div>
         `).join('');
-    } catch (err) {
-        console.error('Failed to load studios', err);
-    }
+    } catch (e) { console.error(e); }
 }
 
 async function submitStudio() {
-    const titleEl = document.getElementById('studio-title');
-    const descEl = document.getElementById('studio-desc');
-    const linkEl = document.getElementById('studio-link') || document.getElementById('studio-scratch-link');
-
-    const title = titleEl ? titleEl.value.trim() : '';
-    const description = descEl ? descEl.value.trim() : '';
-    const scratchLink = linkEl ? linkEl.value.trim() : '';
+    const title = document.getElementById('studio-title')?.value.trim();
+    const description = document.getElementById('studio-desc')?.value.trim();
+    const scratchLink = document.getElementById('studio-link')?.value.trim();
     const msg = document.getElementById('studio-msg');
 
     if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
-    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
+    if (!title || !scratchLink) return showMsg(msg, 'Title and link required.', 'error');
 
-    try {
-        const res = await fetch('/api/studios', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, scratchLink })
-        });
-
-        if (res.ok) {
-            if (titleEl) titleEl.value = '';
-            if (descEl) descEl.value = '';
-            if (linkEl) linkEl.value = '';
-            showMsg(msg, 'Studio advertised successfully!', 'success');
-            fetchStudios();
-        } else {
-            const data = await res.json();
-            showMsg(msg, data.error, 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Failed to publish studio.', 'error');
+    const res = await fetch('/api/studios', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, description, scratchLink })
+    });
+    if (res.ok) {
+        showMsg(msg, 'Studio published!', 'success');
+        fetchStudios();
     }
 }
 
-// --- STORE PLACEHOLDER ---
 function renderStore() {
     const storeColors = document.getElementById('store-colors');
-    const storeBadges = document.getElementById('store-badges');
-    if (storeColors) storeColors.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Customization store loaded.</p>`;
-    if (storeBadges) storeBadges.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Badge inventory loaded.</p>`;
+    if (storeColors) storeColors.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Store inventory loaded.</p>`;
 }
 
-// --- UTILITIES ---
 function showMsg(el, text, type) {
     if (!el) return;
     el.textContent = text;
