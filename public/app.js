@@ -75,7 +75,7 @@ function renderProfile() {
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
                         <input type="password" id="signup-password" placeholder="Create Password">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
-                        <button onclick="requestVerification()" class="btn">Next: Verify Account</button>
+                        <button onclick="requestVerification()" class="btn">Next: Verify Bio</button>
                         <div id="account-msg-1" class="inline-msg"></div>
                     </div>
                 </div>
@@ -138,7 +138,7 @@ function switchAuthMode(mode) {
     }
 }
 
-// --- VERIFICATION WORKFLOW (Step 1 & 2) ---
+// --- BIO VERIFICATION WORKFLOW ---
 async function requestVerification() {
     const usernameInput = document.getElementById('scratch-username');
     const passwordInput = document.getElementById('signup-password');
@@ -167,14 +167,14 @@ async function requestVerification() {
             container.innerHTML = `
                 <h2>Verify Your Account</h2>
                 <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 13px;">
-                    Post this verification code as a comment on our verification project:
+                    Temporarily paste this code into your Scratch <strong>"About Me"</strong> or <strong>Status</strong> section:
                 </p>
                 <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 12px;">
                     <strong style="font-size: 18px; color: var(--accent-color);">${data.verificationCode}</strong>
                 </div>
-                <a href="${data.verificationProjectUrl}" target="_blank" class="btn-outline" style="display: block; text-align: center; margin-bottom: 16px; text-decoration: none; padding: 8px;">Open Verification Project ↗</a>
-                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px;">Once posted, click below to confirm!</p>
-                <button onclick="confirmVerification()" class="btn">I've Posted the Comment</button>
+                <a href="${data.profileUrl}" target="_blank" class="btn-outline" style="display: block; text-align: center; margin-bottom: 16px; text-decoration: none; padding: 8px;">Open My Scratch Profile ↗</a>
+                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px;">Once saved on Scratch, click below to verify!</p>
+                <button onclick="confirmVerification()" class="btn">Check Verification</button>
                 <div id="account-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
             `;
         } else {
