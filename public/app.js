@@ -1,247 +1,353 @@
-const express = require('express');
-const session = require('express-session');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const sanitizeHtml = require('sanitize-html');
-const path = require('path');
-const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
+let currentUser = null;
+let pendingVerification = null;
 
-const app = express();
-const PORT = process.env.PORT || 5000;
+document.addEventListener('DOMContentLoaded', () => {
+    checkSession();
+    fetchPosts();
+    fetchContests();
+    fetchStudios();
+    renderStore();
+});
 
-app.set('trust proxy', 1);
-
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(express.json({ limit: '10kb' }));
-
-app.use(session({
-    secret: process.env.SESSION_SECRET || 'super-secret-scratch-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 86400000 }
-}));
-
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
-app.use(express.static(path.join(__dirname, 'public')));
-
-const pendingVerifications = {};
-
-function cleanInput(str) {
-    if (typeof str !== 'string') return '';
-    return sanitizeHtml(str.trim(), { allowedTags: [], allowedAttributes: {} });
-}
-
-function extractScratchId(input) {
-    const clean = cleanInput(input);
-    const match = clean.match(/\d+/);
-    return match ? match[0] : null;
-}
-
-// --- AUTHENTICATION & REFERRALS ---
-app.get('/api/auth/me', async (req, res) => {
-    if (req.session && req.session.username) {
-        const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
-        return res.json({ user: user || null });
+// --- SESSION CHECK ---
+async function checkSession() {
+    try {
+        const res = await fetch('/api/auth/me');
+        const data = await res.json();
+        currentUser = data.user;
+        updateAuthUI();
+    } catch (err) {
+        console.error('Session check failed', err);
     }
-    res.json({ user: null });
-});
+}
 
-app.post('/api/auth/register-request', authLimiter, (req, res) => {
-    const username = cleanInput(req.body.username);
-    const referralCode = cleanInput(req.body.referralCode);
-    if (!username || username.length < 3) return res.status(400).json({ error: 'Invalid username.' });
+// --- TAB SWITCHING ---
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+    document.querySelectorAll('nav .nav-link').forEach(btn => btn.classList.remove('active'));
 
-    const verificationCode = `BlockBuzz-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-    pendingVerifications[username.toLowerCase()] = { code: verificationCode, referralCode, expiresAt: Date.now() + 15 * 60 * 1000 };
-    res.json({ verificationCode });
-});
+    const targetSection = document.getElementById(`${tabId}-section`);
+    const targetNav = document.getElementById(`nav-${tabId}`);
 
-app.post('/api/auth/verify', authLimiter, async (req, res) => {
-    const username = cleanInput(req.body.username);
-    if (!username) return res.status(400).json({ error: 'Username is required.' });
+    if (targetSection) targetSection.style.display = 'block';
+    if (targetNav) targetNav.classList.add('active');
 
-    const key = username.toLowerCase();
-    const pending = pendingVerifications[key];
+    if (tabId === 'account') renderProfile();
+}
 
-    if (!pending || pending.expiresAt < Date.now()) {
-        return res.status(400).json({ error: 'Session expired. Please request a new code.' });
+// --- AUTH UI UPDATES ---
+function updateAuthUI() {
+    const authContainer = document.getElementById('auth-container');
+    if (!authContainer) return;
+
+    if (currentUser) {
+        authContainer.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;">
+                <div class="avatar-wrapper"><img src="${currentUser.pfp || ''}" alt="PFP"></div>
+                <span style="color: ${currentUser.color || 'inherit'}">${currentUser.username}</span>
+                <span style="background: #fef3c7; color: #d97706; padding: 2px 8px; border-radius: 12px; font-size: 12px;">🪙 ${currentUser.coins}</span>
+            </div>
+        `;
+    } else {
+        authContainer.innerHTML = `<button onclick="switchTab('account')" class="btn" style="padding: 6px 14px; font-size: 13px;">Login</button>`;
+    }
+}
+
+// --- PROFILE & VERIFICATION ---
+function renderProfile() {
+    const container = document.getElementById('account-profile-content');
+    if (!container) return;
+
+    if (!currentUser) {
+        container.innerHTML = `
+            <div class="card" style="text-align: center;">
+                <h2>Scratch Verification</h2>
+                <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Link your Scratch account securely using your bio.</p>
+                
+                <div id="step-1" class="input-group">
+                    <input type="text" id="scratch-username" placeholder="Enter your Scratch username...">
+                    <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
+                    <button onclick="requestVerification()" class="btn">Get Verification Code</button>
+                    <div id="account-msg-1" class="inline-msg"></div>
+                </div>
+
+                <div id="step-2" class="input-group" style="display: none;">
+                    <p style="font-size: 14px;">Paste this code into your <strong>Scratch Bio</strong> or <strong>Status</strong>:</p>
+                    <div id="code-display" style="font-size: 18px; font-weight: bold; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed var(--accent-color); color: var(--accent-color);"></div>
+                    <button onclick="confirmVerification()" class="btn">I've put it in my bio, Verify Me!</button>
+                    <button onclick="resetVerification()" class="btn-outline" style="margin-top: 6px;">Back</button>
+                    <div id="account-msg-2" class="inline-msg"></div>
+                </div>
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div class="card">
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
+                    <div class="avatar-wrapper" style="width: 60px; height: 60px;"><img src="${currentUser.pfp}" alt="PFP"></div>
+                    <div>
+                        <h2 style="color: ${currentUser.color || 'inherit'}">${currentUser.username}</h2>
+                        <p style="color: var(--text-secondary); font-size: 13px;">Coins: 🪙 ${currentUser.coins}</p>
+                        <div style="display: flex; gap: 6px; margin-top: 6px;">
+                            ${(currentUser.badges || []).map(b => `<span style="background: #eff6ff; color: var(--accent-color); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">${b}</span>`).join('')}
+                            ${currentUser.is_admin ? '<span style="background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">Admin</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+                <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px;">
+                    <p style="font-size: 13px; color: var(--text-secondary);">Your Referral Code:</p>
+                    <strong style="font-size: 15px; color: var(--text-primary);">${currentUser.referral_code}</strong>
+                </div>
+                <button onclick="logout()" class="btn-outline" style="width: 100%; border-color: #ef4444; color: #ef4444;">Log Out</button>
+            </div>
+        `;
+    }
+}
+
+async function requestVerification() {
+    const username = document.getElementById('scratch-username').value.trim();
+    const referralCode = document.getElementById('referral-code-input').value.trim();
+    const msg = document.getElementById('account-msg-1');
+
+    if (!username) {
+        showMsg(msg, 'Please enter a username.', 'error');
+        return;
     }
 
     try {
-        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${encodeURIComponent(username)}`);
-        
-        if (!scratchRes.ok) {
-            return res.status(404).json({ error: 'Scratch profile not found.' });
+        const res = await fetch('/api/auth/register-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, referralCode })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            pendingVerification = username;
+            document.getElementById('code-display').textContent = data.verificationCode;
+            document.getElementById('step-1').style.display = 'none';
+            document.getElementById('step-2').style.display = 'flex';
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Network error. Try again.', 'error');
+    }
+}
+
+function resetVerification() {
+    document.getElementById('step-2').style.display = 'none';
+    document.getElementById('step-1').style.display = 'flex';
+    pendingVerification = null;
+}
+
+async function confirmVerification() {
+    const msg = document.getElementById('account-msg-2');
+    try {
+        const res = await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: pendingVerification })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            currentUser = data.user;
+            updateAuthUI();
+            renderProfile();
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Verification failed.', 'error');
+    }
+}
+
+async function logout() {
+    currentUser = null;
+    updateAuthUI();
+    renderProfile();
+}
+
+// --- POSTS, FEED, VIEWS & COMMENTS ---
+async function submitPost() {
+    const scratchInput = document.getElementById('scratch-input').value.trim();
+    const caption = document.getElementById('post-caption').value.trim();
+    const msg = document.getElementById('home-msg');
+
+    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
+    if (!scratchInput) return showMsg(msg, 'Please enter a project URL or ID.', 'error');
+
+    try {
+        const res = await fetch('/api/posts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scratchInput, caption })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            document.getElementById('scratch-input').value = '';
+            document.getElementById('post-caption').value = '';
+            showMsg(msg, 'Project posted successfully!', 'success');
+            fetchPosts();
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Failed to post project.', 'error');
+    }
+}
+
+async function fetchPosts() {
+    const feed = document.getElementById('feed');
+    if (!feed) return;
+
+    try {
+        const res = await fetch('/api/posts');
+        const posts = await res.json();
+
+        if (!posts || posts.length === 0) {
+            feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No projects posted yet.</div>`;
+            return;
         }
 
-        const scratchData = await scratchRes.json();
-        
-        // Safety check if profile data exists
-        if (!scratchData.profile) {
-            return res.status(400).json({ error: 'Could not read Scratch profile data.' });
-        }
+        let htmlContent = '';
+        for (const p of posts) {
+            const isLiked = currentUser && p.likes && p.likes.includes(currentUser.username);
+            const canDelete = currentUser && (currentUser.is_admin || currentUser.username === p.author);
+            const viewCount = p.views ? p.views.length : 0;
+            const likeCount = p.likes ? p.likes.length : 0;
 
-        const bio = scratchData.profile.bio || '';
-        const status = scratchData.profile.status || '';
-        const bioText = (bio + ' ' + status).toUpperCase();
-
-        if (!bioText.includes(pending.code.toUpperCase())) {
-            return res.status(400).json({ error: 'Code not found in your Scratch bio or status yet.' });
-        }
-
-        let { data: existingUser } = await supabase.from('users').select('*').eq('username', scratchData.username).single();
-
-        if (!existingUser) {
-            let coins = 0; 
-            if (pending.referralCode) {
-                const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
-                if (referrer) {
-                    await supabase.from('users').update({ coins: referrer.coins + 100 }).eq('username', referrer.username);
-                    coins += 100; // REFERRAL BONUS
+            let commentsHtml = '';
+            try {
+                const commRes = await fetch(`/api/posts/${p.id}/comments`);
+                const comments = await commRes.json();
+                if (comments && comments.length > 0) {
+                    commentsHtml = comments.map(c => `
+                        <div style="background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; margin-bottom: 4px;">
+                            <strong style="color: ${c.author_color || 'inherit'}">${c.author}:</strong> ${c.text}
+                        </div>
+                    `).join('');
+                } else {
+                    commentsHtml = `<p style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No comments yet.</p>`;
                 }
+            } catch (e) {
+                commentsHtml = `<p style="color: #ef4444; font-size: 12px;">Failed to load comments.</p>`;
             }
 
-            const newUser = {
-                username: scratchData.username,
-                pfp: scratchData.profile.images ? scratchData.profile.images['90x90'] : '',
-                coins: coins,
-                referral_code: `REF-${crypto.randomBytes(2).toString('hex').toUpperCase()}`,
-                color: '#0f172a',
-                badges: [],
-                is_admin: false
-            };
-            await supabase.from('users').insert([newUser]);
-            existingUser = newUser;
+            htmlContent += `
+                <div class="card post-item" data-id="${p.id}" style="margin-bottom: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div class="avatar-wrapper" style="width: 28px; height: 28px;"><img src="${p.author_pfp || ''}" alt=""></div>
+                            <span style="font-weight: 600; font-size: 13px; color: ${p.author_color || 'inherit'}">${p.author}</span>
+                        </div>
+                        ${canDelete ? `<button onclick="deletePost('${p.id}')" style="background:none; border:none; color:#ef4444; cursor:pointer; font-size:12px;">Delete</button>` : ''}
+                    </div>
+                    
+                    <h3 style="font-size: 16px; margin-bottom: 6px;">${p.title}</h3>
+                    <p style="font-size: 14px; color: var(--text-primary); margin-bottom: 10px; white-space: pre-wrap; line-height: 1.4;">${p.caption || ''}</p>
+                    
+                    <img src="${p.thumbnail}" class="project-thumb" alt="Thumbnail" style="width: 100%; border-radius: 8px; margin-bottom: 10px;">
+                    
+                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px;">
+                        <button onclick="toggleLike('${p.id}')" class="btn-outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-color: ${isLiked ? '#dc2626' : 'var(--border-color)'}; color: ${isLiked ? '#dc2626' : 'var(--text-primary)'}; background: ${isLiked ? '#fee2e2' : 'transparent'};">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="${isLiked ? '#dc2626' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                            <span>Like (${likeCount})</span>
+                        </button>
+                        <div style="font-size: 12px; color: var(--text-secondary); padding: 0 4px;">👁️ ${viewCount} views</div>
+                    </div>
+
+                    <!-- Inline Comments Section -->
+                    <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
+                        <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--text-secondary);">Comments</h4>
+                        <div style="max-height: 150px; overflow-y: auto; margin-bottom: 8px;">
+                            ${commentsHtml}
+                        </div>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="comment-input-${p.id}" placeholder="Add a comment..." style="flex: 1; padding: 6px 10px; font-size: 13px; border: 1px solid var(--border-color); border-radius: 6px;">
+                            <button onclick="submitInlineComment('${p.id}')" class="btn" style="padding: 6px 12px; font-size: 13px;">Send</button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
-        delete pendingVerifications[key];
-        req.session.username = scratchData.username;
-        res.json({ success: true, user: existingUser });
+        feed.innerHTML = htmlContent;
+        setupViewObserver();
     } catch (err) {
-        console.error('Verification error details:', err);
-        res.status(500).json({ error: 'Server verification error. Try again later.' });
+        console.error('Failed to load posts', err);
     }
-});
+}
 
-// --- POSTS, LIKES, & VIEWS ---
-app.get('/api/posts', async (req, res) => {
-    const { data: posts } = await supabase.from('posts').select('*').order('id', { ascending: false });
-    res.json(posts || []);
-});
+// --- VIEW OBSERVER ---
+function setupViewObserver() {
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting && currentUser) {
+                const postId = entry.target.getAttribute('data-id');
+                fetch(`/api/posts/${postId}/view`, { method: 'POST' });
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { threshold: 0.6 });
 
-app.post('/api/posts', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+    document.querySelectorAll('.post-item').forEach(el => observer.observe(el));
+}
 
-    const projectId = extractScratchId(req.body.scratchInput);
-    const caption = cleanInput(req.body.caption);
-    if (!projectId) return res.status(400).json({ error: 'Invalid Project.' });
+// --- INLINE COMMENT ACTIONS ---
+async function submitInlineComment(postId) {
+    const textInput = document.getElementById(`comment-input-${postId}`);
+    const text = textInput ? textInput.value.trim() : '';
+    if (!text) return;
+
+    if (!currentUser) return alert('Please login to comment!');
 
     try {
-        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-        const projectRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
-        const projectData = projectRes.ok ? await projectRes.json() : { title: `Scratch Project #${projectId}` };
+        const res = await fetch(`/api/posts/${postId}/comments`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
 
-        const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
-
-        const newPost = {
-            id: Date.now(),
-            project_id: projectId,
-            title: projectData.title,
-            caption,
-            author: user.username,
-            author_pfp: user.pfp,
-            author_color: user.color,
-            thumbnail: `https://uploads.scratch.mit.edu/projects/thumbnails/${projectId}.png`,
-            likes: [],
-            views: []
-        };
-        await supabase.from('posts').insert([newPost]);
-        res.json({ success: true, post: newPost });
+        if (res.ok) {
+            fetchPosts();
+        } else {
+            alert('Failed to send comment.');
+        }
     } catch (err) {
-        res.status(500).json({ error: 'Server error' });
+        alert('Network error while commenting.');
     }
-});
+}
 
-app.post('/api/posts/:id/like', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    const postId = req.params.id;
-    
-    const { data: post } = await supabase.from('posts').select('likes').eq('id', postId).single();
-    if (!post) return res.status(404).json({ error: 'Post not found' });
+async function toggleLike(postId) {
+    if (!currentUser) return alert('Please login to like posts!');
+    await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
+    fetchPosts();
+}
 
-    let likes = post.likes || [];
-    if (likes.includes(req.session.username)) {
-        likes = likes.filter(u => u !== req.session.username); // Unlike
-    } else {
-        likes.push(req.session.username); // Like
-    }
+async function deletePost(postId) {
+    if (!confirm('Delete this post?')) return;
+    await fetch(`/api/moderation/posts/${postId}`, { method: 'DELETE' });
+    fetchPosts();
+}
 
-    await supabase.from('posts').update({ likes }).eq('id', postId);
-    res.json({ success: true, likes });
-});
+// --- PLACEHOLDERS ---
+function fetchContests() { document.getElementById('contests-feed').innerHTML = `<div class="card" style="text-align:center; color:var(--text-secondary);">Contests feature ready.</div>`; }
+function fetchStudios() { document.getElementById('studios-feed').innerHTML = `<div class="card" style="text-align:center; color:var(--text-secondary);">Studios feature ready.</div>`; }
+function submitContest() { alert('Contest advertisement ready!'); }
+function submitStudio() { alert('Studio advertisement ready!'); }
+function renderStore() {
+    document.getElementById('store-colors').innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Colors loaded via store configurations.</p>`;
+    document.getElementById('store-badges').innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Badges loaded via store configurations.</p>`;
+}
 
-app.post('/api/posts/:id/view', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    const postId = req.params.id;
-    
-    const { data: post } = await supabase.from('posts').select('views').eq('id', postId).single();
-    if (!post) return res.status(404).json({ error: 'Post not found' });
-
-    let views = post.views || [];
-    if (!views.includes(req.session.username)) {
-        views.push(req.session.username);
-        await supabase.from('posts').update({ views }).eq('id', postId);
-    }
-    res.json({ success: true, views });
-});
-
-// --- COMMENTS ---
-app.get('/api/posts/:id/comments', async (req, res) => {
-    const { data: comments } = await supabase.from('comments').select('*').eq('post_id', req.params.id).order('created_at', { ascending: true });
-    res.json(comments || []);
-});
-
-app.post('/api/posts/:id/comments', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    const text = cleanInput(req.body.text);
-    if (!text) return res.status(400).json({ error: 'Comment cannot be empty.' });
-
-    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
-    
-    const newComment = { 
-        post_id: req.params.id, 
-        author: user.username, 
-        author_pfp: user.pfp, 
-        author_color: user.color,
-        text 
-    };
-    const { data } = await supabase.from('comments').insert([newComment]).select().single();
-    res.json({ success: true, comment: data });
-});
-
-// --- MODERATION ---
-app.delete('/api/moderation/posts/:id', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    
-    const { data: user } = await supabase.from('users').select('is_admin, username').eq('username', req.session.username).single();
-    const { data: post } = await supabase.from('posts').select('author').eq('id', req.params.id).single();
-
-    if (!user || (!user.is_admin && post?.author !== user.username)) {
-        return res.status(403).json({ error: 'Unauthorized action.' });
-    }
-
-    await supabase.from('posts').delete().eq('id', req.params.id);
-    res.json({ success: true, message: 'Post deleted successfully.' });
-});
-
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.listen(PORT, () => console.log(`Server running securely on port ${PORT}`));
+// --- UTILITIES ---
+function showMsg(el, text, type) {
+    if (!el) return;
+    el.textContent = text;
+    el.className = `inline-msg ${type}`;
+    el.style.display = 'block';
+    setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
