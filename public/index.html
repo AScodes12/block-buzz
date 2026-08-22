@@ -31,8 +31,8 @@
         .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
         
         .input-group { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
-        input[type="text"], select, textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px; outline: none; background: #f8fafc; transition: border-color 0.2s, box-shadow 0.2s; }
-        input[type="text"]:focus, select:focus, textarea:focus { border-color: var(--accent-color); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        input[type="text"], input[type="password"], select, textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px; outline: none; background: #f8fafc; transition: border-color 0.2s, box-shadow 0.2s; }
+        input[type="text"]:focus, input[type="password"]:focus, select:focus, textarea:focus { border-color: var(--accent-color); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
         
         textarea { resize: none !important; }
 
@@ -61,6 +61,11 @@
         .upvote-btn { background: none; border: none; font-size: 16px; cursor: pointer; color: var(--text-secondary); transition: color 0.2s; }
         .upvote-btn.upvoted { color: var(--accent-color); }
         .upvote-count { font-weight: 700; font-size: 13px; color: var(--text-primary); margin-top: 2px; }
+
+        /* MODAL STYLES */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); display: none; justify-content: center; align-items: center; z-index: 200; }
+        .modal-card { background: #fff; border-radius: var(--radius-lg); width: 100%; max-width: 400px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.15); position: relative; }
+        .modal-close { position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-secondary); }
     </style>
 </head>
 <body>
@@ -170,8 +175,43 @@
             <div id="account-profile-content"></div>
         </section>
 
+        <!-- NOTIFICATIONS SECTION -->
         <section id="notifications-section" class="tab-content"></section>
     </main>
+
+    <!-- AUTH MODAL (LOGIN / SIGNUP) -->
+    <div id="auth-modal" class="modal-overlay">
+        <div class="modal-card">
+            <button class="modal-close" onclick="closeAuthModal()">✕</button>
+            <div id="login-form-container">
+                <h3 style="margin-bottom: 4px;">Log In to BlockBuzz</h3>
+                <p style="color:var(--text-secondary); font-size:13px; margin-bottom:16px;">Welcome back! Enter your Scratch username.</p>
+                <div class="input-group">
+                    <input type="text" id="login-username" placeholder="Scratch Username">
+                    <input type="password" id="login-password" placeholder="Password">
+                    <button class="btn" onclick="submitLogin()">Log In</button>
+                    <p style="font-size:13px; text-align:center; margin-top:8px;">
+                        Don't have an account? <a href="#" onclick="toggleAuthForm('signup')" style="color:var(--accent-color);">Sign Up</a>
+                    </p>
+                    <div id="login-msg" class="inline-msg"></div>
+                </div>
+            </div>
+
+            <div id="signup-form-container" style="display:none;">
+                <h3 style="margin-bottom: 4px;">Create an Account</h3>
+                <p style="color:var(--text-secondary); font-size:13px; margin-bottom:16px;">Join BlockBuzz to share Scratch projects!</p>
+                <div class="input-group">
+                    <input type="text" id="signup-username" placeholder="Scratch Username">
+                    <input type="password" id="signup-password" placeholder="Password">
+                    <button class="btn" onclick="submitSignup()">Sign Up</button>
+                    <p style="font-size:13px; text-align:center; margin-top:8px;">
+                        Already have an account? <a href="#" onclick="toggleAuthForm('login')" style="color:var(--accent-color);">Log In</a>
+                    </p>
+                    <div id="signup-msg" class="inline-msg"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>
