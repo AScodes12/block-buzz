@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset Password - BlockBuzz</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <nav>
+        <a href="/" class="logo">BlockBuzz</a>
+    </nav>
+
+    <div class="container">
+        <div class="card">
+            <h2>Reset Password</h2>
+            <br>
+            <div id="step-1">
+                <p>Enter your Scratch username to begin the verification process.</p>
+                <br>
+                <input type="text" id="reset-username" placeholder="Scratch Username">
+                <br><br>
+                <button id="request-reset-btn">Get Verification Code</button>
+            </div>
+
+            <div id="step-2" style="display: none;">
+                <p>Please add this verification code to your Scratch profile bio or Wiwo:</p>
+                <h3 id="reset-code-display" style="color: #0056b3; margin: 15px 0;"></h3>
+                <p><a id="scratch-profile-link" href="#" target="_blank" style="color: #0056b3;">Open your Scratch Profile ↗</a></p>
+                <br>
+                <input type="password" id="new-password" placeholder="Enter New Password">
+                <br><br>
+                <button id="verify-reset-btn">Verify & Change Password</button>
+            </div>
+            
+            <p id="reset-status" style="margin-top: 15px; color: red; font-weight: 500;"></p>
+        </div>
+    </div>
+
+    <script>
+        let currentUsername = '';
+
+        document.getElementById('request-reset-btn').addEventListener('click', async () => {
+            currentUsername = document.getElementById('reset-username').value.trim();
+            const statusEl = document.getElementById('reset-status');
+            statusEl.innerText = '';
+
+            if (!currentUsername) {
+                statusEl.innerText = 'Please enter a username.';
+                return;
+            }
+
+            const res = await fetch('/api/auth/reset-request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: currentUsername })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                document.getElementById('step-1').style.display = 'none';
+                document.getElementById('step-2').style.display = 'block';
+                document.getElementById('reset-code-display').innerText = data.verificationCode;
+                document.getElementById('scratch-profile-link').href = data.profileUrl;
+            } else {
+                statusEl.innerText = data.error || 'Failed to request reset.';
+            }
+        });
+
+        document.getElementById('verify-reset-btn').addEventListener('click', async () => {
+            const newPassword = document.getElementById('new-password').value;
+            const statusEl = document.getElementById('reset-status');
+            statusEl.innerText = '';
+
+            const res = await fetch('/api/auth/reset-password', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: currentUsername, newPassword })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                alert('Password reset successful! Redirecting to home.');
+                window.location.href = '/index.html';
+            } else {
+                statusEl.innerText = data.error || 'Verification failed.';
+            }
+        });
+    </script>
+</body>
+</html>
