@@ -2,7 +2,33 @@
 let currentUser = null;
 let currentDiscussionCategory = 'scratch';
 
-// --- NEW: REPLY TO COMMENTS / POSTS FEATURE ---
+// --- NEW: DIRECT POST REPLY & COMMENT REPLY FEATURES ---
+function togglePostReplyBox(postId) {
+    const box = document.getElementById('post-reply-box-' + postId);
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+async function addPostReply(postId) {
+    const input = document.getElementById('post-reply-input-' + postId);
+    if (!input || !input.value.trim()) return;
+    try {
+        const res = await fetch('/api/posts/' + postId + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input.value })
+        });
+        if (res.ok) {
+            input.value = '';
+            togglePostReplyBox(postId);
+            loadCommentsForPost(postId);
+        } else if (res.status === 401) {
+            openAuthModal('login');
+        }
+    } catch (err) { console.error('Error sending post reply'); }
+}
+
 function toggleReplyBox(commentKey) {
     const box = document.getElementById('reply-box-' + commentKey);
     if (box) {
@@ -96,6 +122,11 @@ function renderPostCard(post) {
         '<div class="post-stats">' +
             '<span class="stat-item">' + eyeIcon + ' <span id="view-count-' + postId + '">' + views + '</span> views</span>' +
             '<button class="stat-btn" onclick="toggleLike(\'' + postId + '\')">' + heartIcon + ' <span id="like-count-' + postId + '">' + likes + '</span> Likes</button>' +
+            '<button class="stat-btn" onclick="togglePostReplyBox(\'' + postId + '\')">💬 Reply</button>' +
+        '</div>' +
+        '<div id="post-reply-box-' + postId + '" style="display:none; margin-top:8px;" class="comment-input-row">' +
+            '<input type="text" id="post-reply-input-' + postId + '" placeholder="Write a reply to this post..." style="padding: 6px 12px; font-size: 13px;">' +
+            '<button class="btn" style="padding: 6px 16px; font-size: 13px;" onclick="addPostReply(\'' + postId + '\')">Send</button>' +
         '</div>' +
         '<div class="comments-section">' +
             '<div id="comments-list-' + postId + '"><p style="font-size:13px; color:var(--text-secondary);">Loading comments...</p></div>' +
