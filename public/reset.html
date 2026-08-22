@@ -62,7 +62,7 @@
         <div id="reset-msg" class="inline-msg"></div>
 
         <div class="footer-links">
-            <p style="margin-top: 15px;"><a href="/login.html">Back to Log In</a></p>
+            <p style="margin-top: 15px;"><a href="/index.html">Back to Log In</a></p>
         </div>
     </div>
 
@@ -113,7 +113,7 @@
                 if (!res.ok) throw new Error(data.error);
 
                 alert('Password reset successfully! Redirecting to login.');
-                window.location.href = '';
+                window.location.href = '/index.html';
             } catch (err) {
                 showMsg(err.message);
             }
