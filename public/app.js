@@ -193,6 +193,7 @@ function resetVerification() {
     pendingVerification = null;
 }
 
+// Bypasses Render cloud server IP block by fetching directly from the user's browser
 async function confirmVerification() {
     const msg = document.getElementById('account-msg-2');
     if (!pendingVerification) return showMsg(msg, 'Session expired. Restart registration.', 'error');
@@ -200,8 +201,9 @@ async function confirmVerification() {
     try {
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${pendingVerification}`);
         if (!scratchRes.ok) {
-            return showMsg(msg, 'Could not connect to Scratch API.', 'error');
+            return showMsg(msg, 'Could not connect to Scratch API. Check username spelling.', 'error');
         }
+        
         const scratchData = await scratchRes.json();
         const bio = scratchData.profile?.bio || '';
         const status = scratchData.profile?.status || '';
@@ -216,6 +218,7 @@ async function confirmVerification() {
                 pfp: scratchData.profile?.images?.['90x90'] || '' 
             })
         });
+        
         const data = await res.json();
 
         if (res.ok) {
@@ -226,7 +229,8 @@ async function confirmVerification() {
             showMsg(msg, data.error, 'error');
         }
     } catch (err) {
-        showMsg(msg, 'Verification failed.', 'error');
+        console.error('Verification error:', err);
+        showMsg(msg, 'Verification failed. Make sure your code is saved in your Scratch bio!', 'error');
     }
 }
 
