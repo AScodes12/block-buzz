@@ -43,12 +43,13 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentUser) {
             container.innerHTML = `
                 <div class="user-pill">
-                    <img src="${currentUser.pfp}" class="nav-pfp" alt="${currentUser.username}" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;">
+                    <img src="${currentUser.pfp}" class="nav-pfp" alt="${currentUser.username}">
                     <span>${currentUser.username} (${currentUser.coins} coins)</span>
                     <button class="btn btn-secondary btn-sm" id="btn-logout">Logout</button>
                 </div>
             `;
-            document.getElementById('btn-logout').addEventListener('click', handleLogout);
+            const logoutBtn = document.getElementById('btn-logout');
+            if (logoutBtn) logoutBtn.addEventListener('click', handleLogout);
         } else {
             container.innerHTML = `
                 <button class="btn btn-secondary" id="btn-open-login">Log In</button>
@@ -83,12 +84,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return `
                     <div class="post-card" data-id="${post.id}">
                         <div class="post-header">
-                            <img src="${post.author_pfp}" class="author-pfp" alt="${post.author}" style="width:32px;height:32px;border-radius:50%;">
-                            <span class="author-name">${post.author}</span>
+                            <img src="${post.author_pfp}" class="author-pfp" alt="${post.author}">
+                            <span class="author-name">${escapeHTML(post.author)}</span>
                         </div>
                         <a href="${post.scratch_link}" target="_blank" class="post-thumb-link">
-                            <img src="${post.thumbnail}" class="post-thumb" alt="${post.title}" style="max-width:100%;border-radius:6px;">
-                            <div class="post-title" style="font-weight:bold;margin-top:6px;">${escapeHTML(post.title)}</div>
+                            <img src="${post.thumbnail}" class="post-thumb" alt="${post.title}">
+                            <div class="post-title">${escapeHTML(post.title)}</div>
                         </a>
                         <p class="post-caption">${escapeHTML(post.caption || '')}</p>
                         <div class="post-actions">
@@ -150,20 +151,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 const dateStr = new Date(item.created_at).toLocaleDateString();
 
                 return `
-                    <div class="discussion-card" style="display:flex;gap:12px;padding:12px;border:1px solid #ccc;border-radius:6px;margin-bottom:12px;">
-                        <div class="upvote-box" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:40px;">
-                            <button class="upvote-btn ${upvoted ? 'active' : ''}" onclick="toggleUpvote(${item.id})" style="cursor:pointer;background:none;border:none;font-size:16px;">
-                                ▲
-                            </button>
-                            <span class="upvote-count" style="font-weight:bold;">${(item.upvotes || []).length}</span>
-                        </div>
-                        <div class="discussion-main" style="flex:1;">
-                            <div class="discussion-meta" style="font-size:0.85em;color:#666;margin-bottom:4px;">
-                                <img src="${item.author_pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png'}" class="author-pfp-sm" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;">
-                                <strong style="color:#333;">${escapeHTML(item.author)}</strong> • <span>${dateStr}</span>
+                    <div class="post-card" style="margin-bottom: 12px;">
+                        <div style="display: flex; gap: 12px; align-items: flex-start;">
+                            <div style="text-align: center; min-width: 36px;">
+                                <button class="btn btn-secondary ${upvoted ? 'active' : ''}" onclick="toggleUpvote(${item.id})" style="padding: 4px 8px;">
+                                    ▲
+                                </button>
+                                <div style="font-weight: bold; margin-top: 4px;">${(item.upvotes || []).length}</div>
                             </div>
-                            <h3 class="discussion-title" style="margin:4px 0;">${escapeHTML(item.title)}</h3>
-                            <p class="discussion-content" style="margin:4px 0;white-space:pre-wrap;">${escapeHTML(item.content)}</p>
+                            <div style="flex: 1;">
+                                <div class="post-header" style="margin-bottom: 4px;">
+                                    <img src="${item.author_pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png'}" class="author-pfp">
+                                    <span class="author-name">${escapeHTML(item.author)}</span>
+                                    <span style="font-size: 0.8em; color: #888; margin-left: auto;">${dateStr}</span>
+                                </div>
+                                <h3 style="margin: 4px 0;">${escapeHTML(item.title)}</h3>
+                                <p style="white-space: pre-wrap; margin: 4px 0;">${escapeHTML(item.content)}</p>
+                            </div>
                         </div>
                     </div>
                 `;
@@ -192,7 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    // --- CREATE DISCUSSION MODAL & FORM ---
+    // --- MODALS & FORMS ---
     const modalDiscussion = document.getElementById('modal-create-discussion');
     const btnOpenDiscussion = document.getElementById('btn-open-create-discussion');
     const formDiscussion = document.getElementById('form-create-discussion');
@@ -242,7 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // --- CREATE POST FORM ---
     const formCreatePost = document.getElementById('form-create-post');
     const modalCreatePost = document.getElementById('modal-create-post');
     const btnOpenCreatePost = document.getElementById('btn-open-create-post');
@@ -338,7 +341,7 @@ document.addEventListener('DOMContentLoaded', () => {
         );
     }
 
-    // App Startup
+    // Startup
     checkAuth();
     loadPosts();
 });
