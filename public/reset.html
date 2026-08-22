@@ -9,7 +9,7 @@
 <body style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--bg-primary);">
 
     <div class="card" style="max-width: 400px; width: 100%; margin: 20px;">
-        <h2>Reset Password</h2>
+        <h2 style="margin-bottom: 8px;">Reset Password</h2>
         <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 13px;">
             Enter your verified Scratch username to request a password reset code.
         </p>
@@ -18,20 +18,20 @@
         <div id="reset-request-form" class="input-group">
             <input type="text" id="reset-username" placeholder="Scratch Username">
             <button onclick="requestPasswordReset()" class="btn" style="width: 100%;">Get Reset Code</button>
-            <div id="reset-msg-1" class="inline-msg" style="margin-top: 10px;"></div>
+            <div id="reset-msg-1" class="inline-msg" style="display: none; margin-top: 10px;"></div>
         </div>
 
-        <!-- STEP 2: SUBMIT CODE & NEW PASSWORD (Hidden initially) -->
+        <!-- STEP 2: SUBMIT CODE & NEW PASSWORD -->
         <div id="reset-confirm-form" class="input-group" style="display: none;">
-            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 12px;">
+            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 13px;">
                 Paste this code on the top line of your Scratch profile's <strong>"What I'm working on"</strong> section, then enter your new password below:
             </p>
-            <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 12px;">
+            <div style="background: var(--bg-secondary); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 12px;">
                 <strong id="reset-code-display" style="font-size: 16px; color: var(--accent-color);">---</strong>
             </div>
             <input type="password" id="new-password" placeholder="New Password">
             <button onclick="confirmPasswordReset()" class="btn" style="width: 100%;">Update Password</button>
-            <div id="reset-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
+            <div id="reset-msg-2" class="inline-msg" style="display: none; margin-top: 10px;"></div>
         </div>
 
         <div style="text-align: center; margin-top: 16px;">
@@ -91,7 +91,6 @@
 
                 if (res.ok) {
                     showMsg(msg, 'Password updated successfully! Redirecting...', 'success');
-                    // Redirects directly to index.html instead of login.html after 1.5 seconds
                     setTimeout(() => {
                         window.location.href = 'index.html';
                     }, 1500);
