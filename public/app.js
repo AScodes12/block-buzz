@@ -47,9 +47,15 @@ function switchTab(tabName) {
 // --- POSTS & FEED ---
 function renderPostCard(post) {
     const postId = post.id;
-    const views = post.views || 0;
-    const likes = post.likes || 0;
-    const comments = post.comments || [];
+    // Ensure views and likes are strictly numerical values
+    const views = Number(post.views) || 0;
+    const likes = Number(post.likes) || 0;
+    const comments = Array.isArray(post.comments) ? post.comments : [];
+
+    // Clean SVG Icons (Eye, Heart, Chat)
+    const eyeIcon = `<svg class="icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>`;
+    const heartIcon = `<svg class="icon" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>`;
+    const chatIcon = `<svg class="icon" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>`;
 
     return `
         <div class="card" id="post-${postId}">
@@ -66,9 +72,9 @@ function renderPostCard(post) {
             <p style="font-size:14px; color:var(--text-secondary); margin-top:4px;">${escapeHTML(post.caption || '')}</p>
             
             <div class="post-stats">
-                <span style="font-size: 13px;">👁️ ${views} views</span>
-                <button class="stat-btn" onclick="toggleLike('${postId}')">❤️ <span id="like-count-${postId}">${likes}</span> Likes</button>
-                <button class="stat-btn" onclick="toggleComments('${postId}')">💬 ${comments.length} Comments</button>
+                <span class="stat-item">${eyeIcon} ${views} views</span>
+                <button class="stat-btn" onclick="toggleLike('${postId}')">${heartIcon} <span id="like-count-${postId}">${likes}</span> Likes</button>
+                <span class="stat-item">${chatIcon} ${comments.length} Comments</span>
             </div>
 
             <div class="comments-section" id="comments-${postId}">
@@ -140,11 +146,6 @@ async function toggleLike(postId) {
     }
 }
 
-function toggleComments(postId) {
-    const section = document.getElementById(`comments-${postId}`);
-    if (section) section.classList.toggle('open');
-}
-
 async function addComment(postId) {
     const input = document.getElementById(`comment-input-${postId}`);
     if (!input || !input.value.trim()) return;
@@ -158,7 +159,6 @@ async function addComment(postId) {
         if (res.ok) {
             input.value = '';
             loadFeed();
-            setTimeout(() => toggleComments(postId), 50); // Keep comments open after reload
         }
     } catch (err) {
         console.error('Error adding comment');
