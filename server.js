@@ -58,17 +58,26 @@ app.post('/api/auth/verify', async (req, res) => {
             return res.status(400).json({ error: 'No pending verification found. Please request a code first.' });
         }
 
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${cleanUsername}`);
+        // Fetch public data from Scratch API with standard browser headers to bypass cloud blocks
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${cleanUsername}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json'
+            }
+        });
+
         if (!scratchRes.ok) {
             return res.status(400).json({ error: 'Could not connect to Scratch API or user not found.' });
         }
 
         const scratchData = await scratchRes.json();
         
-        // Extract bio safely from Scratch profile structure
         const bio = (scratchData.profile && scratchData.profile.bio) || scratchData.bio || '';
         const status = (scratchData.profile && scratchData.profile.status) || scratchData.status || '';
         const expectedCode = pending.verificationCode;
+
+        console.log(`Checking user ${cleanUsername} for code: ${expectedCode}`);
+        console.log(`Fetched Bio: "${bio}" | Status: "${status}"`);
 
         if (bio.includes(expectedCode) || status.includes(expectedCode)) {
             const newUser = {
@@ -123,7 +132,12 @@ app.post('/api/posts', async (req, res) => {
     if (match) projectId = match[1];
 
     try {
-        const projRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
+        const projRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'application/json'
+            }
+        });
         if (!projRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch project. Make sure it is shared.' });
         
         const projData = await projRes.json();
