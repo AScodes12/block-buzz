@@ -88,6 +88,10 @@ function renderProfile() {
                         <input type="text" id="login-username" placeholder="Scratch Username">
                         <input type="password" id="login-password" placeholder="Password">
                         <button onclick="loginUser()" class="btn" style="width: 100%;">Log In</button>
+                        <!-- Added Forgot Password link pointing to reset.html -->
+                        <div style="text-align: right; margin-top: 6px;">
+                            <a href="reset.html" style="font-size: 12px; color: var(--accent-color); text-decoration: none;">Forgot Password?</a>
+                        </div>
                         <div id="account-msg-3" class="inline-msg"></div>
                     </div>
                 </div>
