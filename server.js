@@ -82,7 +82,7 @@ app.post('/api/auth/register-request', async (req, res) => {
     }
 });
 
-// Register Step 2: Check Scratch Profile Bio, Wiwo, & Status for the code
+// Register Step 2: Check Scratch Profile Bio & Status for the code with debug logs
 app.post('/api/auth/verify', async (req, res) => {
     try {
         const { username } = req.body;
@@ -108,17 +108,14 @@ app.post('/api/auth/verify', async (req, res) => {
         const scratchData = await scratchRes.json();
 
         const aboutMe = scratchData.profile?.biography || '';
-        const wiwo = scratchData.profile?.wiwo || ''; // What I'm working on
         const status = scratchData.profile?.status || '';
-        
-        // Combine About Me, What I'm working on, and Status fields
-        const combinedText = `${aboutMe} ${wiwo} ${status}`;
+        const combinedText = `${aboutMe} ${status}`;
 
         console.log("Looking for code:", pending.verificationCode);
         console.log("Found text on profile:", combinedText);
 
         if (!combinedText.includes(pending.verificationCode)) {
-            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found in your About Me, What I'm working on, or Status yet!` });
+            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found in your Scratch Bio or Status yet!` });
         }
 
         let coins = 50;
