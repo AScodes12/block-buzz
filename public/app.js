@@ -193,7 +193,6 @@ function resetVerification() {
     pendingVerification = null;
 }
 
-// Routes verification safely through your server backend to bypass CORS blocks
 async function confirmVerification() {
     const msg = document.getElementById('account-msg-2');
     if (!pendingVerification) return showMsg(msg, 'Session expired. Restart registration.', 'error');
@@ -328,6 +327,9 @@ async function fetchPosts() {
                 commentsHtml = `<p style="color: #ef4444; font-size: 12px;">Failed to load comments.</p>`;
             }
 
+            // Line-art style eye SVG icon for views
+            const viewLineArtIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 2px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+
             htmlContent += `
                 <div class="card post-item" data-id="${p.id}" style="margin-bottom: 20px;">
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
@@ -348,7 +350,7 @@ async function fetchPosts() {
                         <button onclick="toggleLike('${p.id}')" class="btn-outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-color: ${isLiked ? '#dc2626' : 'var(--border-color)'}; color: ${isLiked ? '#dc2626' : 'var(--text-primary)'}; background: ${isLiked ? '#fee2e2' : 'transparent'};">
                             <span>Like (${likeCount})</span>
                         </button>
-                        <div style="font-size: 12px; color: var(--text-secondary); padding: 0 4px;">👁️ ${viewCount} views</div>
+                        <div style="font-size: 12px; color: var(--text-secondary); padding: 0 4px; display: flex; align-items: center; gap: 3px;">${viewLineArtIcon} ${viewCount} views</div>
                     </div>
 
                     <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
