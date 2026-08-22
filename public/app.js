@@ -368,7 +368,11 @@ async function submitContest() {
     const title = document.getElementById('contest-title')?.value.trim();
     const description = document.getElementById('contest-desc')?.value.trim();
     const prize = document.getElementById('contest-prize')?.value.trim();
-    const scratchLink = document.getElementById('contest-link')?.value.trim();
+    const scratchLink = (
+        document.getElementById('contest-link')?.value ||
+        document.getElementById('contest-scratch-link')?.value ||
+        document.getElementById('contest-url')?.value
+    ).trim();
     const msg = document.getElementById('contest-msg');
 
     if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
@@ -383,10 +387,10 @@ async function submitContest() {
         const data = await res.json();
 
         if (res.ok) {
-            document.getElementById('contest-title').value = '';
-            document.getElementById('contest-desc').value = '';
-            document.getElementById('contest-prize').value = '';
-            document.getElementById('contest-link').value = '';
+            if(document.getElementById('contest-title')) document.getElementById('contest-title').value = '';
+            if(document.getElementById('contest-desc')) document.getElementById('contest-desc').value = '';
+            if(document.getElementById('contest-prize')) document.getElementById('contest-prize').value = '';
+            if(document.getElementById('contest-link')) document.getElementById('contest-link').value = '';
             showMsg(msg, 'Contest advertised successfully!', 'success');
             fetchContests();
         } else {
@@ -430,7 +434,11 @@ async function fetchStudios() {
 async function submitStudio() {
     const title = document.getElementById('studio-title')?.value.trim();
     const description = document.getElementById('studio-desc')?.value.trim();
-    const scratchLink = document.getElementById('studio-link')?.value.trim();
+    const scratchLink = (
+        document.getElementById('studio-link')?.value ||
+        document.getElementById('studio-scratch-link')?.value ||
+        document.getElementById('studio-url')?.value
+    ).trim();
     const msg = document.getElementById('studio-msg');
 
     if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
@@ -445,9 +453,9 @@ async function submitStudio() {
         const data = await res.json();
 
         if (res.ok) {
-            document.getElementById('studio-title').value = '';
-            document.getElementById('studio-desc').value = '';
-            document.getElementById('studio-link').value = '';
+            if(document.getElementById('studio-title')) document.getElementById('studio-title').value = '';
+            if(document.getElementById('studio-desc')) document.getElementById('studio-desc').value = '';
+            if(document.getElementById('studio-link')) document.getElementById('studio-link').value = '';
             showMsg(msg, 'Studio advertised successfully!', 'success');
             fetchStudios();
         } else {
