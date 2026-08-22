@@ -69,7 +69,7 @@ async function addDiscussionReply(discussionId) {
     const input = document.getElementById('discussion-reply-input-' + discussionId);
     if (!input || !input.value.trim()) return;
     try {
-        const res = await fetch('/api/discussions/' + discussionId + '/replies', {
+        const res = await fetch('/api/discussions/' + discussionId + '/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: input.value })
@@ -88,7 +88,7 @@ async function loadRepliesForDiscussion(discussionId) {
     const listContainer = document.getElementById('discussion-comments-list-' + discussionId);
     if (!listContainer) return;
     try {
-        const res = await fetch('/api/discussions/' + discussionId + '/replies');
+        const res = await fetch('/api/discussions/' + discussionId + '/comments');
         const replies = res.ok ? await res.json() : [];
         if (replies.length === 0) {
             listContainer.innerHTML = '<p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">No replies yet. Be the first to reply!</p>';
@@ -158,6 +158,9 @@ function renderPostCard(post) {
     const views = Array.isArray(post.views) ? post.views.length : 0;
     const likes = Array.isArray(post.likes) ? post.likes.length : 0;
 
+    const isAuthor = currentUser && (currentUser.username === post.author || currentUser.is_admin);
+    const deleteBtnHtml = isAuthor ? '<button class="stat-btn" style="color: #d93025; margin-left: auto; font-size: 12px; padding: 2px 8px;" onclick="deletePost(\'' + postId + '\')">Delete</button>' : '';
+
     const eyeIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
     const heartIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
 
@@ -167,6 +170,7 @@ function renderPostCard(post) {
                 '<img src="' + (post.author_pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png') + '">' +
             '</div>' +
             '<span class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(post.author) + '\')">' + escapeHTML(post.author) + '<span class="verified-badge">✓</span></span>' +
+            deleteBtnHtml +
         '</div>' +
         '<a href="' + escapeHTML(post.scratch_link) + '" target="_blank" style="text-decoration:none; color:inherit;" onclick="registerView(\'' + postId + '\')">' +
             '<img class="project-thumb" src="' + (post.thumbnail || 'https://scratch.mit.edu/images/scratch-og.png') + '">' +
@@ -192,6 +196,24 @@ function renderPostCard(post) {
     '</div>';
 }
 
+async function deletePost(postId) {
+    if (!confirm('Are you sure you want to delete this project post?')) return;
+    try {
+        const res = await fetch('/api/posts/' + postId, { method: 'DELETE' });
+        if (res.ok) {
+            const card = document.getElementById('post-' + postId);
+            if (card) card.remove();
+        } else if (res.status === 401) {
+            openAuthModal('login');
+        } else {
+            const data = await res.json();
+            alert(data.error || 'Failed to delete post.');
+        }
+    } catch (err) {
+        console.error('Error deleting post:', err);
+    }
+}
+
 async function loadCommentsForPost(postId) {
     const listContainer = document.getElementById('comments-list-' + postId);
     if (!listContainer) return;
@@ -202,18 +224,31 @@ async function loadCommentsForPost(postId) {
             listContainer.innerHTML = '<p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">No comments yet.</p>';
             return;
         }
+
+        const topLevel = comments.filter(c => !c.parent_id);
+        const replies = comments.filter(c => c.parent_id);
+
         let html = '';
-        for (let i = 0; i < comments.length; i++) {
-            let c = comments[i];
-            let cId = c.id || i;
+        for (let i = 0; i < topLevel.length; i++) {
+            let c = topLevel[i];
+            let cId = c.id;
             html += '<div class="comment-item" style="margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border-color, #eee);">' +
                 '<div><b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(c.author) + '\')">' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) + '</div>' +
                 '<button class="stat-btn" style="font-size: 11px; padding: 2px 6px; margin-top: 4px; background: var(--bg-hover, #f0f0f0); border-radius: 4px;" onclick="toggleReplyBox(\'' + postId + '-' + cId + '\')">' + replyIcon + '</button>' +
                 '<div id="reply-box-' + postId + '-' + cId + '" style="display:none; margin-top:6px; margin-left:12px;" class="comment-input-row">' +
                     '<input type="text" id="reply-input-' + postId + '-' + cId + '" placeholder="Write a reply..." style="padding: 4px 8px; font-size: 12px;">' +
                     '<button class="btn" style="padding: 4px 12px; font-size: 12px;" onclick="addReply(\'' + postId + '\', \'' + cId + '\', \'reply-input-' + postId + '-' + cId + '\')">Send</button>' +
-                '</div>' +
-            '</div>';
+                '</div>';
+
+            let commentReplies = replies.filter(r => r.parent_id === cId);
+            for (let j = 0; j < commentReplies.length; j++) {
+                let r = commentReplies[j];
+                html += '<div style="margin-top:6px; margin-left:16px; padding-left:8px; border-left:2px solid var(--border-color, #ddd); font-size: 12px;">' +
+                    '<b>' + escapeHTML(r.author) + ':</b> ' + escapeHTML(r.text) +
+                '</div>';
+            }
+
+            html += '</div>';
         }
         listContainer.innerHTML = html;
     } catch (err) {
@@ -638,6 +673,7 @@ async function submitAuthLogin() {
         currentUser = data.user;
         renderAuthUI();
         closeAuthModal();
+        loadFeed();
     } else {
         alert(data.error || 'Login failed.');
     }
@@ -676,6 +712,7 @@ async function submitAuthVerify(username) {
         currentUser = data.user;
         renderAuthUI();
         closeAuthModal();
+        loadFeed();
         alert('Verification successful! Welcome to BlockBuzz.');
     } else {
         alert(data.error || 'Verification code not found on profile yet.');
@@ -723,6 +760,7 @@ async function logout() {
     await fetch('/api/auth/logout', { method: 'POST' });
     currentUser = null;
     renderAuthUI();
+    loadFeed();
     switchTab('home');
 }
 
