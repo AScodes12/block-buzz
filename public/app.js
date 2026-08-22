@@ -2,6 +2,9 @@
 let currentUser = null;
 let currentDiscussionCategory = 'scratch';
 
+// --- SHARED ICONS ---
+const replyIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>';
+
 // --- POST REPLY & COMMENT REPLY FEATURES ---
 function togglePostReplyBox(postId) {
     const box = document.getElementById('post-reply-box-' + postId);
@@ -173,7 +176,7 @@ function renderPostCard(post) {
         '<div class="post-stats">' +
             '<span class="stat-item">' + eyeIcon + ' <span id="view-count-' + postId + '">' + views + '</span> views</span>' +
             '<button class="stat-btn" onclick="toggleLike(\'' + postId + '\')">' + heartIcon + ' <span id="like-count-' + postId + '">' + likes + '</span> Likes</button>' +
-            '<button class="stat-btn" onclick="togglePostReplyBox(\'' + postId + '\')">💬 Reply</button>' +
+            '<button class="stat-btn" onclick="togglePostReplyBox(\'' + postId + '\')">' + replyIcon + '</button>' +
         '</div>' +
         '<div id="post-reply-box-' + postId + '" style="display:none; margin-top:8px;" class="comment-input-row">' +
             '<input type="text" id="post-reply-input-' + postId + '" placeholder="Write a reply to this post..." style="padding: 6px 12px; font-size: 13px;">' +
@@ -205,7 +208,7 @@ async function loadCommentsForPost(postId) {
             let cId = c.id || i;
             html += '<div class="comment-item" style="margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border-color, #eee);">' +
                 '<div><b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(c.author) + '\')">' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) + '</div>' +
-                '<button class="stat-btn" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; background: var(--bg-hover, #f0f0f0); border-radius: 4px;" onclick="toggleReplyBox(\'' + postId + '-' + cId + '\')">💬 Reply</button>' +
+                '<button class="stat-btn" style="font-size: 11px; padding: 2px 6px; margin-top: 4px; background: var(--bg-hover, #f0f0f0); border-radius: 4px;" onclick="toggleReplyBox(\'' + postId + '-' + cId + '\')">' + replyIcon + '</button>' +
                 '<div id="reply-box-' + postId + '-' + cId + '" style="display:none; margin-top:6px; margin-left:12px;" class="comment-input-row">' +
                     '<input type="text" id="reply-input-' + postId + '-' + cId + '" placeholder="Write a reply..." style="padding: 4px 8px; font-size: 12px;">' +
                     '<button class="btn" style="padding: 4px 12px; font-size: 12px;" onclick="addReply(\'' + postId + '\', \'' + cId + '\', \'reply-input-' + postId + '-' + cId + '\')">Send</button>' +
@@ -333,7 +336,7 @@ async function loadDiscussions(category) {
                 '<p style="font-size:14px; color:var(--text-secondary); margin-bottom:12px;">' + escapeHTML(item.content) + '</p>' +
                 '<div class="post-stats">' +
                     '<button class="stat-btn" onclick="toggleDiscussionUpvote(\'' + item.id + '\')">' + thumbUpIcon + ' <span id="upvote-count-' + item.id + '">' + upvotes + '</span> Upvotes</button>' +
-                    '<button class="stat-btn" onclick="toggleDiscussionReplyBox(\'' + item.id + '\')">💬 Reply</button>' +
+                    '<button class="stat-btn" onclick="toggleDiscussionReplyBox(\'' + item.id + '\')">' + replyIcon + '</button>' +
                 '</div>' +
                 '<div id="discussion-reply-box-' + item.id + '" style="display:none; margin-top:8px;" class="comment-input-row">' +
                     '<input type="text" id="discussion-reply-input-' + item.id + '" placeholder="Write a reply to this discussion..." style="padding: 6px 12px; font-size: 13px;">' +
