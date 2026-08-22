@@ -14,7 +14,9 @@ const PORT = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+// Use Service Role Key if available to safely bypass RLS on the server, fallback to anon key
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
+
 if (!supabaseUrl || !supabaseKey) {
     console.error("Missing Supabase environment variables!");
 }
@@ -343,10 +345,14 @@ app.post('/api/posts', ensureAuthenticated, async (req, res) => {
         };
 
         const { data, error } = await supabase.from('posts').insert([newPost]).select();
-        if (error) return res.status(400).json({ error: `Database error: ${error.message}` });
+        if (error) {
+            console.error("SUPABASE POST ERROR:", error);
+            return res.status(400).json({ error: `Database error: ${error.message}` });
+        }
 
         res.json({ success: true, post: data[0] });
     } catch (err) {
+        console.error("SERVER POST ERROR:", err);
         res.status(500).json({ error: `Server error: ${err.message}` });
     }
 });
@@ -438,6 +444,7 @@ app.post('/api/posts/:id/comments', ensureAuthenticated, async (req, res) => {
         const newComment = {
             post_id: req.params.id,
             author: req.session.user.username,
+            author_pfp: req.session.user.pfp,
             text: text.trim(),
             parent_id: parentId || null,
             created_at: new Date().toISOString()
@@ -562,11 +569,15 @@ app.post('/api/discussions/:id/comments', ensureAuthenticated, async (req, res) 
         };
 
         const { data, error } = await supabase.from('discussion_comments').insert([newComment]).select();
-        if (error) throw error;
+        
+        if (error) {
+            console.error("SUPABASE DISCUSSION COMMENT ERROR:", error);
+            return res.status(400).json({ error: `Database error: ${error.message}` });
+        }
 
         res.json({ success: true, comment: data[0] });
     } catch (err) {
-        console.error("Discussion comment error:", err);
+        console.error("SERVER DISCUSSION COMMENT EXCEPTION:", err);
         res.status(500).json({ error: 'Failed to add response.' });
     }
 });
