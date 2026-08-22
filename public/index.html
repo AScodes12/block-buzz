@@ -5,19 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlockBuzz - Secure Scratch Community</title>
     
-    <!-- Client-Side Security Check: Redirects unauthenticated users to login -->
-    <script>
-        fetch('/api/auth/me')
-            .then(res => res.json())
-            .then(data => {
-                if (!data.user) {
-                    window.location.href = '/login.html'; // Change to your actual login filename if different
-                }
-            })
-            .catch(() => {
-                window.location.href = '/login.html';
-            });
-    </script>
+    <!-- Authentication check removed from here so visitors can view the feed! -->
 
     <style>
         :root {
@@ -50,7 +38,6 @@
         input[type="text"], textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px; outline: none; background: #f8fafc; transition: border-color 0.2s, box-shadow 0.2s; }
         input[type="text"]:focus, textarea:focus { border-color: var(--accent-color); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
         
-        /* Disabled resize for textareas */
         textarea { resize: none !important; }
 
         .btn { background-color: var(--accent-color); color: #fff; border: none; padding: 10px 20px; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; cursor: pointer; transition: background-color 0.2s; }
@@ -87,7 +74,7 @@
 
     <main>
         <section id="home-section" class="tab-content" style="display: block;">
-            <div class="card">
+            <div class="card" id="create-post-card">
                 <h3 style="margin-bottom: 4px;">Share a Scratch Project</h3>
                 <p style="color:var(--text-secondary); font-size: 13px; margin-bottom: 12px;">Paste your project link to showcase it to the community.</p>
                 <div class="input-group">
