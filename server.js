@@ -279,7 +279,7 @@ app.get('/api/users/:username', async (req, res) => {
             .from('posts')
             .select('*')
             .eq('author', username)
-            .order('created_at', { ascending: false, nullsFirst: false });
+            .order('id', { ascending: false });
 
         res.json({ user, posts: posts || [] });
     } catch (err) {
@@ -287,13 +287,13 @@ app.get('/api/users/:username', async (req, res) => {
     }
 });
 
-// --- POSTS ROUTES ---
+// --- POSTS ROUTES (Ordered by Post ID) ---
 app.get('/api/posts', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('posts')
             .select('*')
-            .order('created_at', { ascending: false, nullsFirst: false });
+            .order('id', { ascending: false });
         
         if (error) return res.json([]);
         res.json(data || []);
