@@ -19,7 +19,7 @@ app.use(session({
     secret: 'scratch-community-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false } // Set to true if using HTTPS in production
+    cookie: { secure: false }
 }));
 
 // Serve static files from the public directory
@@ -27,7 +27,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Helper to generate random referral code
 function generateReferralCode() {
-    return Math.random().toString(36.substring(2, 8)).toUpperCase();
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
 // ================= AUTH & VERIFICATION ROUTES =================
@@ -40,8 +40,6 @@ app.post('/api/auth/register-request', (req, res) => {
     }
 
     const cleanUsername = username.trim();
-    
-    // Generate a unique 6-character code
     const verificationCode = 'SCRATCH-' + Math.floor(100000 + Math.random() * 900000);
     
     pendingVerifications.set(cleanUsername, {
@@ -75,31 +73,35 @@ app.post('/api/auth/verify', async (req, res) => {
         }
 
         const scratchData = await scratchRes.json();
-        const bio = scratchData.profile && scratchData.profile.bio ? scratchData.profile.bio : '';
-        const status = scratchData.profile && scratchData.profile.status ? scratchData.profile.status : '';
+        
+        // Safely extract bio and status from different possible API structures
+        const bio = scratchData.bio || (scratchData.profile && scratchData.profile.bio) || '';
+        const status = scratchData.status || (scratchData.profile && scratchData.profile.status) || '';
         const expectedCode = pending.verificationCode;
+
+        console.log(`Checking user ${cleanUsername} for code: ${expectedCode}`);
+        console.log(`Fetched Bio: "${bio}" | Status: "${status}"`);
 
         // Check if code exists in bio or status fields
         if (bio.includes(expectedCode) || status.includes(expectedCode)) {
-            // Create user profile
             const newUser = {
                 username: cleanUsername,
-                pfp: scratchData.profile.images ? scratchData.profile.images['90x90'] : '',
-                coins: 50, // Starting bonus coins
+                pfp: (scratchData.profile && scratchData.profile.images && scratchData.profile.images['90x90']) || 
+                     (scratchData.profile && scratchData.profile.image) || '',
+                coins: 50,
                 referral_code: generateReferralCode(),
                 badges: ['Verified'],
-                is_admin: users.size === 0 // Make the very first registered user an admin automatically
+                is_admin: users.size === 0
             };
 
             users.set(cleanUsername, newUser);
             pendingVerifications.delete(cleanUsername);
 
-            // Save session
             req.session.user = newUser;
             return res.json({ success: true, user: newUser });
         } else {
             return res.status(400).json({ 
-                error: `Verification code "${expectedCode}" not found in your Scratch bio yet. Please make sure you saved it and wait up to 30 seconds for Scratch to update.` 
+                error: `Verification code "${expectedCode}" not found in your Scratch bio yet. Make sure it's saved in your "About Me".` 
             });
         }
     } catch (err) {
@@ -111,7 +113,6 @@ app.post('/api/auth/verify', async (req, res) => {
 // 3. Check current session
 app.get('/api/auth/me', (req, res) => {
     if (req.session && req.session.user) {
-        // Return latest user state from memory map
         const currentUser = users.get(req.session.user.username) || req.session.user;
         return res.json({ user: currentUser });
     }
@@ -133,7 +134,6 @@ app.post('/api/posts', async (req, res) => {
         return res.status(400).json({ error: 'Scratch project input is required.' });
     }
 
-    // Extract project ID if URL was provided
     let projectId = scratchInput.trim();
     const match = projectId.match(/\/projects\/(\d+)/);
     if (match) {
@@ -141,7 +141,6 @@ app.post('/api/posts', async (req, res) => {
     }
 
     try {
-        // Fetch project info from Scratch API to get title and thumbnail
         const projRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
         if (!projRes.ok) {
             return res.status(400).json({ error: 'Could not fetch Scratch project. Make sure it is shared.' });
