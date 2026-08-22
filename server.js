@@ -1,121 +1,145 @@
+require('dotenv').config();
 const express = require('express');
-const session = require('express-session');
+const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcrypt');
-const path = require('path');
+const session = require('express-session');
+const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Initialize Supabase Client
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) {
+    console.error("Missing Supabase environment variables!");
+}
+const supabase = createClient(supabaseUrl, supabaseKey);
+
 // Middleware
+app.use(helmet({ contentSecurityPolicy: false }));
+app.use(cors());
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static('public')); // Serves frontend files from public folder
 
 app.use(session({
-    secret: 'block-buzz-secure-secret-key',
+    secret: process.env.SESSION_SECRET || 'block-buzz-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }
+    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 1 day
 }));
 
-// In-Memory Databases (Replace with a real DB like MongoDB/PostgreSQL for production)
-const usersDB = new Map(); // username -> user object
-const pendingRegistrations = new Map(); // username -> { code, passwordHash, referralCode }
-const postsDB = [];
-const contestsDB = [];
-const studiosDB = [];
+// Rate limiter for auth routes
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/api/auth/', authLimiter);
 
-// Helper functions
-function generateCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
+// --- AUTHENTICATION ROUTES ---
 
-function generateReferralCode() {
-    return Math.random().toString(36).substring(2, 8).toUpperCase();
-}
+// Check current session
+app.get('/api/auth/me', (req, res) => {
+    res.json({ user: req.session.user || null });
+});
 
-// --- AUTH ROUTES ---
-
-// Step 1: Request registration code
+// Register Step 1: Request verification code & store pending registration in memory/session
 app.post('/api/auth/register-request', async (req, res) => {
     try {
         const { username, password, referralCode } = req.body;
-        if (!username || !password) {
-            return res.status(400).json({ error: 'Username and password are required.' });
-        }
+        if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
 
-        if (usersDB.has(username)) {
-            return res.status(400).json({ error: 'Username is already registered.' });
-        }
+        // Check if user already exists in Supabase
+        const { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
+        if (existing) return res.status(400).json({ error: 'Username already registered.' });
 
-        const verificationCode = `BB-${generateCode()}`;
-        const passwordHash = await bcrypt.hash(password, 10);
+        // Fetch Scratch profile to verify existence and get pfp
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
+        if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found.' });
+        const scratchData = await scratchRes.json();
+        const pfp = scratchData.profile?.images?.['90x90'] || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png';
 
-        pendingRegistrations.set(username, {
-            code: verificationCode,
-            passwordHash,
-            referralCode: referralCode || null
-        });
+        const verificationCode = 'BB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        const hashedPassword = await bcrypt.hash(password, 10);
+
+        // Store pending data temporarily in session
+        req.session.pendingUser = { username, hashedPassword, pfp, referralCode, verificationCode };
 
         res.json({ success: true, verificationCode });
     } catch (err) {
         console.error(err);
-        res.status(500).json({ error: 'Internal server error.' });
+        res.status(500).json({ error: 'Server error during registration request.' });
     }
 });
 
-// Step 2: Verify via backend fetching Scratch (Bypasses CORS and Render IP block issues)
+// Register Step 2: Confirm verification code from Scratch bio
 app.post('/api/auth/verify', async (req, res) => {
     try {
         const { username } = req.body;
-        const pending = pendingRegistrations.get(username);
+        const pending = req.session.pendingUser;
 
-        if (!pending) {
-            return res.status(400).json({ error: 'No pending registration found. Please restart.' });
+        if (!pending || pending.username !== username) {
+            return res.status(400).json({ error: 'Verification session expired. Please restart.' });
         }
 
-        // Fetch Scratch profile server-side
+        // Fetch Scratch user profile bio/about me
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
-        if (!scratchRes.ok) {
-            return res.status(400).json({ error: 'Could not reach Scratch API. Check username spelling.' });
-        }
-
         const scratchData = await scratchRes.json();
-        const bio = scratchData.profile?.bio || '';
-        const status = scratchData.profile?.status || '';
+        const bio = (scratchData.profile?.biography || '') + ' ' + (scratchData.profile?.status || '');
 
-        // Check if verification code exists in bio or status
-        if (bio.includes(pending.code) || status.includes(pending.code)) {
-            const newUser = {
-                username,
-                passwordHash: pending.passwordHash,
-                pfp: scratchData.profile?.images?.['90x90'] || '',
-                coins: 100,
-                badges: ['Verified'],
-                referral_code: generateReferralCode(),
-                is_admin: usersDB.size === 0 // First user becomes admin
-            };
-
-            usersDB.set(username, newUser);
-            pendingRegistrations.delete(username);
-
-            // Set session
-            req.session.user = {
-                username: newUser.username,
-                pfp: newUser.pfp,
-                coins: newUser.coins,
-                badges: newUser.badges,
-                referral_code: newUser.referral_code,
-                is_admin: newUser.is_admin
-            };
-
-            return res.json({ success: true, user: req.session.user });
-        } else {
-            return res.status(400).json({ error: 'Verification code not found in your Scratch bio or status!' });
+        if (!bio.includes(pending.verificationCode)) {
+            return res.status(400).json({ error: 'Verification code not found in your Scratch bio yet!' });
         }
+
+        let coins = 50; // Welcome bonus
+        let badges = ['Verified'];
+
+        // Handle Referral Code if provided
+        if (pending.referralCode) {
+            const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
+            if (referrer) {
+                coins += 25;
+                // Reward referrer
+                await supabase.from('users').update({ coins: (referrer.coins || 0) + 25 }).eq('username', referrer.username);
+            }
+        }
+
+        const newReferralCode = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        const newUser = {
+            username: pending.username,
+            password: pending.hashedPassword,
+            pfp: pending.pfp,
+            coins: coins,
+            badges: badges,
+            referral_code: newReferralCode,
+            is_admin: false,
+            created_at: new Date()
+        };
+
+        const { data, error } = await supabase.from('users').insert([newUser]).select();
+        if (error) throw error;
+
+        const userSessionData = {
+            username: data[0].username,
+            pfp: data[0].pfp,
+            coins: data[0].coins,
+            badges: data[0].badges,
+            referral_code: data[0].referral_code,
+            is_admin: data[0].is_admin
+        };
+
+        req.session.user = userSessionData;
+        delete req.session.pendingUser;
+
+        res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error('Verification error:', err);
-        res.status(500).json({ error: 'Server error during verification.' });
+        console.error(err);
+        res.status(500).json({ error: 'Verification failed.' });
     }
 });
 
@@ -123,13 +147,14 @@ app.post('/api/auth/verify', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        const user = usersDB.get(username);
+        const { data: user, error } = await supabase.from('users').select('*').eq('username', username).single();
 
-        if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
-            return res.status(400).json({ error: 'Invalid username or password.' });
-        }
+        if (error || !user) return res.status(400).json({ error: 'Invalid username or password.' });
 
-        req.session.user = {
+        const match = await bcrypt.compare(password, user.password);
+        if (!match) return res.status(400).json({ error: 'Invalid username or password.' });
+
+        const userSessionData = {
             username: user.username,
             pfp: user.pfp,
             coins: user.coins,
@@ -138,124 +163,201 @@ app.post('/api/auth/login', async (req, res) => {
             is_admin: user.is_admin
         };
 
-        res.json({ success: true, user: req.session.user });
+        req.session.user = userSessionData;
+        res.json({ success: true, user: userSessionData });
     } catch (err) {
-        res.status(500).json({ error: 'Login failed.' });
+        res.status(500).json({ error: 'Login error.' });
     }
-});
-
-// Check Session
-app.get('/api/auth/me', (req, res) => {
-    res.json({ user: req.session.user || null });
 });
 
 // Logout
 app.post('/api/auth/logout', (req, res) => {
-    req.session.destroy(() => {
-        res.json({ success: true });
-    });
+    req.session.destroy();
+    res.json({ success: true });
 });
+
 
 // --- POSTS ROUTES ---
-app.get('/api/posts', (req, res) => {
-    res.json(postsDB);
-});
 
-app.post('/api/posts', (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
-    const { scratchInput, caption } = req.body;
-
-    // Simple ID extractor from Scratch URL
-    const match = scratchInput.match(/\d+/);
-    const projectId = match ? match[0] : scratchInput.trim();
-
-    if (!projectId) return res.status(400).json({ error: 'Invalid Scratch Project ID/URL.' });
-
-    const newPost = {
-        id: Date.now().toString(),
-        author: req.session.user.username,
-        author_pfp: req.session.user.pfp,
-        title: `Project #${projectId}`,
-        caption: caption || '',
-        thumbnail: `https://uploads.scratch.mit.edu/get_image/project/${projectId}_480x360.png`,
-        scratch_link: `https://scratch.mit.edu/projects/${projectId}`,
-        likes: [],
-        views: [],
-        comments: [],
-        createdAt: new Date()
-    };
-
-    postsDB.unshift(newPost);
-    res.json({ success: true, post: newPost });
-});
-
-app.post('/api/posts/:id/like', (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
-    const post = postsDB.find(p => p.id === req.params.id);
-    if (!post) return res.status(404).json({ error: 'Post not found' });
-
-    const username = req.session.user.username;
-    const index = post.likes.indexOf(username);
-    if (index > -1) {
-        post.likes.splice(index, 1);
-    } else {
-        post.likes.push(username);
+// Get all posts (Persisted from Supabase)
+app.get('/api/posts', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('posts')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch posts.' });
     }
-    res.json({ success: true, likes: post.likes.length });
 });
 
-app.get('/api/posts/:id/comments', (req, res) => {
-    const post = postsDB.find(p => p.id === req.params.id);
-    if (!post) return res.status(404).json({ error: 'Post not found' });
-    res.json(post.comments);
-});
-
-app.post('/api/posts/:id/comments', (req, res) => {
+// Create Post (Fetches actual title & thumbnail from Scratch API)
+app.post('/api/posts', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
-    const post = postsDB.find(p => p.id === req.params.id);
-    if (!post) return res.status(404).json({ error: 'Post not found' });
 
-    const { text } = req.body;
-    if (!text) return res.status(400).json({ error: 'Comment cannot be empty' });
+    try {
+        const { scratchInput, caption } = req.body;
+        let projectId = scratchInput.trim();
+        
+        // Extract ID if URL was pasted
+        if (projectId.includes('scratch.mit.edu')) {
+            const match = projectId.match(/\/projects\/(\d+)/);
+            if (match) projectId = match[1];
+        }
 
-    const comment = {
-        id: Date.now().toString(),
-        author: req.session.user.username,
-        text,
-        createdAt: new Date()
-    };
+        if (!/^\d+$/.test(projectId)) {
+            return res.status(400).json({ error: 'Invalid Scratch project ID or URL.' });
+        }
 
-    post.comments.push(comment);
-    res.json({ success: true, comment });
+        // Fetch actual project details from Scratch API
+        const scratchProjRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
+        if (!scratchProjRes.ok) return res.status(404).json({ error: 'Scratch project not found.' });
+        const scratchProjData = await scratchProjRes.json();
+
+        const projectTitle = scratchProjData.title || `Project #${projectId}`;
+        const projectThumbnail = scratchProjData.image || `https://cdn2.scratch.mit.edu/get_image/project/${projectId}_480x360.png`;
+        const scratchLink = `https://scratch.mit.edu/projects/${projectId}/`;
+
+        const newPost = {
+            author: req.session.user.username,
+            author_pfp: req.session.user.pfp,
+            scratch_link: scratchLink,
+            title: projectTitle,
+            thumbnail: projectThumbnail,
+            caption: caption || '',
+            likes: [],
+            views: [],
+            created_at: new Date()
+        };
+
+        const { data, error } = await supabase.from('posts').insert([newPost]).select();
+        if (error) throw error;
+
+        res.json({ success: true, post: data[0] });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Failed to create post.' });
+    }
 });
 
-app.post('/api/posts/:id/view', (req, res) => {
+// Like / Unlike Post
+app.post('/api/posts/:id/like', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const postId = req.params.id;
+        const username = req.session.user.username;
+
+        const { data: post, error } = await supabase.from('posts').select('*').eq('id', postId).single();
+        if (error || !post) return res.status(404).json({ error: 'Post not found' });
+
+        let likes = post.likes || [];
+        if (likes.includes(username)) {
+            likes = likes.filter(u => u !== username);
+        } else {
+            likes.push(username);
+        }
+
+        await supabase.from('posts').update({ likes }).eq('id', postId);
+        res.json({ success: true, likes });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to update like.' });
+    }
+});
+
+// Track Unique View
+app.post('/api/posts/:id/view', async (req, res) => {
     if (!req.session.user) return res.sendStatus(401);
-    const post = postsDB.find(p => p.id === req.params.id);
-    if (!post) return res.sendStatus(404);
+    try {
+        const postId = req.params.id;
+        const username = req.session.user.username;
 
-    const username = req.session.user.username;
-    if (!post.views.includes(username)) {
-        post.views.push(username);
+        const { data: post } = await supabase.from('posts').select('*').eq('id', postId).single();
+        if (!post) return res.sendStatus(404);
+
+        let views = post.views || [];
+        if (!views.includes(username)) {
+            views.push(username);
+            await supabase.from('posts').update({ views }).eq('id', postId);
+        }
+        res.json({ success: true });
+    } catch (err) {
+        res.sendStatus(500);
     }
-    res.sendStatus(200);
 });
 
-// --- CONTESTS & STUDIOS ---
-app.get('/api/contests', (req, res) => res.json(contestsDB));
-app.post('/api/contests', (req, res) => {
+
+// --- COMMENTS ROUTES ---
+
+app.get('/api/posts/:id/comments', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('comments')
+            .select('*')
+            .eq('post_id', req.params.id)
+            .order('created_at', { ascending: true });
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch comments.' });
+    }
+});
+
+app.post('/api/posts/:id/comments', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    try {
+        const { text } = req.body;
+        if (!text) return res.status(400).json({ error: 'Comment cannot be empty.' });
+
+        const newComment = {
+            post_id: req.params.id,
+            author: req.session.user.username,
+            text: text,
+            created_at: new Date()
+        };
+
+        const { data, error } = await supabase.from('comments').insert([newComment]).select();
+        if (error) throw error;
+
+        res.json({ success: true, comment: data[0] });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to add comment.' });
+    }
+});
+
+
+// --- CONTESTS & STUDIOS ROUTES ---
+
+app.get('/api/contests', async (req, res) => {
+    const { data } = await supabase.from('contests').select('*').order('created_at', { ascending: false });
+    res.json(data || []);
+});
+
+app.post('/api/contests', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
     const { title, description, prize, scratchLink } = req.body;
-    contestsDB.unshift({ id: Date.now().toString(), author: req.session.user.username, author_pfp: req.session.user.pfp, title, description, prize, scratch_link: scratchLink });
-    res.json({ success: true });
+    const { data, error } = await supabase.from('contests').insert([{
+        title, description, prize, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date()
+    }]).select();
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ success: true, contest: data[0] });
 });
 
-app.get('/api/studios', (req, res) => res.json(studiosDB));
-app.post('/api/studios', (req, res) => {
+app.get('/api/studios', async (req, res) => {
+    const { data } = await supabase.from('studios').select('*').order('created_at', { ascending: false });
+    res.json(data || []);
+});
+
+app.post('/api/studios', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
     const { title, description, scratchLink } = req.body;
-    studiosDB.unshift({ id: Date.now().toString(), author: req.session.user.username, author_pfp: req.session.user.pfp, title, description, scratch_link: scratchLink });
-    res.json({ success: true });
+    const { data, error } = await supabase.from('studios').insert([{
+        title, description, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date()
+    }]).select();
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ success: true, studio: data[0] });
 });
 
 app.listen(PORT, () => {
