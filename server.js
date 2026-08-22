@@ -11,6 +11,7 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust Render's proxy for accurate rate-limiting & headers
 app.set('trust proxy', 1);
 
 // Initialize Supabase Client
@@ -81,25 +82,37 @@ app.post('/api/auth/register-request', async (req, res) => {
     }
 });
 
-// Register Step 2: Check Scratch Profile Bio & Status for the code
+// Register Step 2: Check Scratch Profile Bio & Status for the code with debug logs
 app.post('/api/auth/verify', async (req, res) => {
     try {
         const { username } = req.body;
         const pending = req.session.pendingUser;
 
+        console.log("Verify attempt for username:", username);
+        console.log("Pending session data:", pending);
+
         if (!pending || pending.username !== username) {
+            console.log("Error: Session expired or username mismatch");
             return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
         }
 
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`, {
             headers: { 'User-Agent': 'BlockBuzz-Platform' }
         });
-        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
+        
+        if (!scratchRes.ok) {
+            console.log("Error: Could not fetch Scratch profile, status:", scratchRes.status);
+            return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
+        }
+        
         const scratchData = await scratchRes.json();
 
         const aboutMe = scratchData.profile?.biography || '';
         const status = scratchData.profile?.status || '';
         const combinedText = `${aboutMe} ${status}`;
+
+        console.log("Looking for code:", pending.verificationCode);
+        console.log("Found text on profile:", combinedText);
 
         if (!combinedText.includes(pending.verificationCode)) {
             return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found in your Scratch Bio or Status yet!` });
@@ -130,7 +143,10 @@ app.post('/api/auth/verify', async (req, res) => {
         };
 
         const { data, error } = await supabase.from('users').insert([newUser]).select();
-        if (error) throw error;
+        if (error) {
+            console.log("Supabase insert error:", error);
+            throw error;
+        }
 
         const userSessionData = {
             username: data[0].username,
@@ -146,7 +162,7 @@ app.post('/api/auth/verify', async (req, res) => {
 
         res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error("Verification error:", err);
+        console.error("Critical verification error:", err);
         res.status(500).json({ error: 'Verification failed.' });
     }
 });
