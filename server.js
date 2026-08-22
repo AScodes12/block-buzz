@@ -47,7 +47,7 @@ app.get('/api/auth/me', (req, res) => {
     res.json({ user: req.session.user || null });
 });
 
-// Register Step 1: Request verification code & store pending registration in memory/session
+// Register Step 1: Request verification code
 app.post('/api/auth/register-request', async (req, res) => {
     try {
         const { username, password, referralCode } = req.body;
@@ -71,7 +71,7 @@ app.post('/api/auth/register-request', async (req, res) => {
 
         res.json({ success: true, verificationCode });
     } catch (err) {
-        console.error(err);
+        console.error("Register request error:", err);
         res.status(500).json({ error: 'Server error during registration request.' });
     }
 });
@@ -83,11 +83,12 @@ app.post('/api/auth/verify', async (req, res) => {
         const pending = req.session.pendingUser;
 
         if (!pending || pending.username !== username) {
-            return res.status(400).json({ error: 'Verification session expired. Please restart.' });
+            return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
         }
 
         // Fetch Scratch user profile bio/about me
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
+        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
         const scratchData = await scratchRes.json();
         const bio = (scratchData.profile?.biography || '') + ' ' + (scratchData.profile?.status || '');
 
@@ -103,7 +104,6 @@ app.post('/api/auth/verify', async (req, res) => {
             const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
             if (referrer) {
                 coins += 25;
-                // Reward referrer
                 await supabase.from('users').update({ coins: (referrer.coins || 0) + 25 }).eq('username', referrer.username);
             }
         }
@@ -138,7 +138,7 @@ app.post('/api/auth/verify', async (req, res) => {
 
         res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error(err);
+        console.error("Verification error:", err);
         res.status(500).json({ error: 'Verification failed.' });
     }
 });
@@ -147,8 +147,9 @@ app.post('/api/auth/verify', async (req, res) => {
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
-        const { data: user, error } = await supabase.from('users').select('*').eq('username', username).single();
+        if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
 
+        const { data: user, error } = await supabase.from('users').select('*').eq('username', username).single();
         if (error || !user) return res.status(400).json({ error: 'Invalid username or password.' });
 
         const match = await bcrypt.compare(password, user.password);
@@ -166,6 +167,7 @@ app.post('/api/auth/login', async (req, res) => {
         req.session.user = userSessionData;
         res.json({ success: true, user: userSessionData });
     } catch (err) {
+        console.error("Login error:", err);
         res.status(500).json({ error: 'Login error.' });
     }
 });
@@ -179,7 +181,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 // --- POSTS ROUTES ---
 
-// Get all posts (Persisted from Supabase)
+// Get all posts (Safely handles errors and returns empty array instead of 500 crash)
 app.get('/api/posts', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -187,22 +189,26 @@ app.get('/api/posts', async (req, res) => {
             .select('*')
             .order('created_at', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+            console.error("Supabase posts fetch error:", error.message);
+            return res.json([]);
+        }
         res.json(data || []);
     } catch (err) {
-        res.status(500).json({ error: 'Failed to fetch posts.' });
+        console.error("Server posts error:", err);
+        res.json([]);
     }
 });
 
-// Create Post (Fetches actual title & thumbnail from Scratch API)
+// Create Post (Fetches title & thumbnail from Scratch API)
 app.post('/api/posts', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
 
     try {
         const { scratchInput, caption } = req.body;
+        if (!scratchInput) return res.status(400).json({ error: 'Project link or ID required.' });
+
         let projectId = scratchInput.trim();
-        
-        // Extract ID if URL was pasted
         if (projectId.includes('scratch.mit.edu')) {
             const match = projectId.match(/\/projects\/(\d+)/);
             if (match) projectId = match[1];
@@ -212,7 +218,6 @@ app.post('/api/posts', async (req, res) => {
             return res.status(400).json({ error: 'Invalid Scratch project ID or URL.' });
         }
 
-        // Fetch actual project details from Scratch API
         const scratchProjRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
         if (!scratchProjRes.ok) return res.status(404).json({ error: 'Scratch project not found.' });
         const scratchProjData = await scratchProjRes.json();
@@ -238,7 +243,7 @@ app.post('/api/posts', async (req, res) => {
 
         res.json({ success: true, post: data[0] });
     } catch (err) {
-        console.error(err);
+        console.error("Create post error:", err);
         res.status(500).json({ error: 'Failed to create post.' });
     }
 });
@@ -298,10 +303,10 @@ app.get('/api/posts/:id/comments', async (req, res) => {
             .select('*')
             .eq('post_id', req.params.id)
             .order('created_at', { ascending: true });
-        if (error) throw error;
+        if (error) return res.json([]);
         res.json(data || []);
     } catch (err) {
-        res.status(500).json({ error: 'Failed to fetch comments.' });
+        res.json([]);
     }
 });
 
