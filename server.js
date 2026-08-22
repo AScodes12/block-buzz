@@ -239,6 +239,72 @@ app.post('/api/posts/:id/comments', async (req, res) => {
     res.json({ success: true, comment: data });
 });
 
+// --- CONTESTS ---
+app.get('/api/contests', async (req, res) => {
+    const { data: contests } = await supabase.from('contests').select('*').order('id', { ascending: false });
+    res.json(contests || []);
+});
+
+app.post('/api/contests', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const title = cleanInput(req.body.title);
+    const description = cleanInput(req.body.description);
+    const prize = cleanInput(req.body.prize);
+    const scratchLink = cleanInput(req.body.scratchLink);
+
+    if (!title || !scratchLink) return res.status(400).json({ error: 'Title and link are required.' });
+
+    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
+
+    const newContest = {
+        id: Date.now(),
+        title,
+        description,
+        prize,
+        scratch_link: scratchLink,
+        author: user.username,
+        author_pfp: user.pfp
+    };
+
+    const { error } = await supabase.from('contests').insert([newContest]);
+    if (error) return res.status(500).json({ error: 'Failed to create contest.' });
+
+    res.json({ success: true, contest: newContest });
+});
+
+// --- STUDIOS ---
+app.get('/api/studios', async (req, res) => {
+    const { data: studios } = await supabase.from('studios').select('*').order('id', { ascending: false });
+    res.json(studios || []);
+});
+
+app.post('/api/studios', async (req, res) => {
+    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+
+    const title = cleanInput(req.body.title);
+    const description = cleanInput(req.body.description);
+    const scratchLink = cleanInput(req.body.scratchLink);
+
+    if (!title || !scratchLink) return res.status(400).json({ error: 'Title and link are required.' });
+
+    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
+
+    const newStudio = {
+        id: Date.now(),
+        title,
+        description,
+        scratch_link: scratchLink,
+        author: user.username,
+        author_pfp: user.pfp
+    };
+
+    const { error } = await supabase.from('studios').insert([newStudio]);
+    if (error) return res.status(500).json({ error: 'Failed to create studio.' });
+
+    res.json({ success: true, studio: newStudio });
+});
+
 // --- MODERATION ---
 app.delete('/api/moderation/posts/:id', async (req, res) => {
     if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
