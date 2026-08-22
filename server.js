@@ -1,546 +1,472 @@
-require('dotenv').config();
 const express = require('express');
-const { createClient } = require('@supabase/supabase-js');
-const bcrypt = require('bcrypt');
 const session = require('express-session');
-const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const { createClient } = require('@supabase/supabase-js');
+const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.set('trust proxy', 1);
-
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
-if (!supabaseUrl || !supabaseKey) {
-    console.error("Missing Supabase environment variables!");
-}
+// Supabase Configuration (Make sure these environment variables are set in your hosting platform or .env file)
+const supabaseUrl = process.env.SUPABASE_URL || 'YOUR_SUPABASE_URL';
+const supabaseKey = process.env.SUPABASE_KEY || 'YOUR_SUPABASE_KEY';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors());
+// Middleware
 app.use(express.json());
-app.use(express.static('public'));
-app.use(express.static(__dirname));
-
+app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'block-buzz-secret-key',
+    secret: process.env.SESSION_SECRET || 'blockbuzz_secure_secret_key',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
+    cookie: { secure: false } // Set to true if using HTTPS in production
 }));
 
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 20,
-    message: { error: 'Too many requests, please try again later.' }
-});
-app.use('/api/auth/', authLimiter);
+// Serve static frontend files from a 'public' folder (change if your layout differs)
+app.use(express.static('public'));
 
-// --- SECURITY MIDDLEWARE ---
-function ensureAuthenticated(req, res, next) {
-    if (req.session && req.session.user) {
-        return next();
-    }
-    return res.status(401).json({ error: 'Unauthorized. Please log in first.' });
-}
+// --- AUTHENTICATION API ---
 
-// --- AUTHENTICATION ROUTES ---
 app.get('/api/auth/me', (req, res) => {
-    res.json({ user: req.session.user || null });
-});
-
-app.post('/api/auth/register-request', async (req, res) => {
-    try {
-        const { username, password, referralCode } = req.body;
-        if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
-
-        const { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
-        if (existing) return res.status(400).json({ error: 'Username already registered.' });
-
-        const timestamp = Date.now();
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
-            headers: { 'User-Agent': 'BlockBuzz-Platform' }
-        });
-        if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found.' });
-        const scratchData = await scratchRes.json();
-        const pfp = scratchData.profile?.images?.['90x90'] || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png';
-
-        const verificationCode = 'BB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        req.session.pendingUser = { username, hashedPassword, pfp, referralCode, verificationCode };
-
-        res.json({ 
-            success: true, 
-            verificationCode, 
-            profileUrl: `https://scratch.mit.edu/users/${username}/`
-        });
-    } catch (err) {
-        console.error("Register request error:", err);
-        res.status(500).json({ error: 'Server error during registration request.' });
-    }
-});
-
-app.post('/api/auth/verify', async (req, res) => {
-    try {
-        const { username } = req.body;
-        const pending = req.session.pendingUser;
-
-        if (!pending || pending.username !== username) {
-            return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
-        }
-
-        const timestamp = Date.now();
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
-            headers: { 'User-Agent': 'BlockBuzz-Platform' }
-        });
-        
-        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
-        
-        const scratchData = await scratchRes.json();
-        const aboutMe = scratchData.profile?.biography || '';
-        const wiwo = scratchData.profile?.wiwo || ''; 
-        const status = scratchData.profile?.status || '';
-        const combinedText = `${aboutMe} ${wiwo} ${status}`;
-
-        if (!combinedText.includes(pending.verificationCode)) {
-            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found on your profile yet!` });
-        }
-
-        let coins = 50;
-        let badges = ['Verified'];
-
-        if (pending.referralCode) {
-            const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
-            if (referrer) {
-                coins += 25;
-                await supabase.from('users').update({ coins: (referrer.coins || 0) + 25 }).eq('username', referrer.username);
-            }
-        }
-
-        const newReferralCode = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
-
-        const newUser = {
-            username: pending.username,
-            password: pending.hashedPassword,
-            pfp: pending.pfp,
-            coins: coins,
-            badges: badges,
-            referral_code: newReferralCode,
-            is_admin: false,
-            created_at: new Date().toISOString()
-        };
-
-        const { data, error } = await supabase.from('users').insert([newUser]).select();
-        if (error) throw error;
-
-        const userSessionData = {
-            username: data[0].username,
-            pfp: data[0].pfp,
-            coins: data[0].coins,
-            badges: data[0].badges,
-            referral_code: data[0].referral_code,
-            is_admin: data[0].is_admin
-        };
-
-        req.session.user = userSessionData;
-        delete req.session.pendingUser;
-
-        res.json({ success: true, user: userSessionData });
-    } catch (err) {
-        console.error("Verification error:", err);
-        res.status(500).json({ error: 'Verification failed.' });
+    if (req.session.user) {
+        res.json({ user: req.session.user });
+    } else {
+        res.json({ user: null });
     }
 });
 
 app.post('/api/auth/login', async (req, res) => {
+    const { username, password } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password are required.' });
+    }
+
     try {
-        const { username, password } = req.body;
-        if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('*')
+            .eq('username', username)
+            .single();
 
-        const { data: user, error } = await supabase.from('users').select('*').eq('username', username).single();
-        if (error || !user) return res.status(400).json({ error: 'Invalid username or password.' });
+        if (error || !user || user.password !== password) {
+            return res.status(401).json({ error: 'Invalid username or password.' });
+        }
 
-        const match = await bcrypt.compare(password, user.password);
-        if (!match) return res.status(400).json({ error: 'Invalid username or password.' });
-
-        const userSessionData = {
-            username: user.username,
-            pfp: user.pfp,
-            coins: user.coins,
-            badges: user.badges,
-            referral_code: user.referral_code,
-            is_admin: user.is_admin
-        };
-
-        req.session.user = userSessionData;
-        res.json({ success: true, user: userSessionData });
+        req.session.user = user;
+        res.json({ success: true, user });
     } catch (err) {
-        res.status(500).json({ error: 'Login error.' });
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/register-request', async (req, res) => {
+    const { username, password, referralCode } = req.body;
+    if (!username || !password) {
+        return res.status(400).json({ error: 'Username and password are required.' });
+    }
+
+    try {
+        // Check if user already exists
+        const { data: existing } = await supabase
+            .from('users')
+            .select('username')
+            .eq('username', username)
+            .single();
+
+        if (existing) {
+            return res.status(400).json({ error: 'Username already registered.' });
+        }
+
+        const verificationCode = 'BB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+        
+        // Store temporary registration state in session
+        req.session.pendingUser = { username, password, verificationCode, referralCode };
+
+        res.json({
+            success: true,
+            verificationCode,
+            profileUrl: `https://scratch.mit.edu/users/${username}/`
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/auth/verify', async (req, res) => {
+    const { username } = req.body;
+    const pending = req.session.pendingUser;
+
+    if (!pending || pending.username !== username) {
+        return res.status(400).json({ error: 'No pending registration found for this user.' });
+    }
+
+    try {
+        // Fetch Scratch profile data to check bio/about me for verification code
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
+        if (!scratchRes.ok) {
+            return res.status(400).json({ error: 'Could not reach Scratch API to verify profile.' });
+        }
+        const scratchData = await scratchRes.json();
+        const bio = (scratchData.profile.bio || '') + ' ' + (scratchData.profile.status || '');
+
+        if (!bio.includes(pending.verificationCode)) {
+            return res.status(400).json({ error: 'Verification code not found on your Scratch profile bio yet.' });
+        }
+
+        const pfp = scratchData.profile.images['90x90'] || '';
+        const referral_code = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+        // Create user in Supabase
+        const { data: newUser, error } = await supabase.from('users').insert([{
+            username,
+            password: pending.password,
+            pfp,
+            coins: 50, // Signup bonus
+            referral_code,
+            created_at: new Date()
+        }]).select().single();
+
+        if (error) throw error;
+
+        delete req.session.pendingUser;
+        req.session.user = newUser;
+
+        res.json({ success: true, user: newUser });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
     }
 });
 
 app.post('/api/auth/logout', (req, res) => {
-    req.session.destroy();
-    res.json({ success: true });
+    req.session.destroy(() => {
+        res.json({ success: true });
+    });
 });
 
-// --- PASSWORD RESET ROUTES ---
-app.post('/api/auth/reset-request', async (req, res) => {
-    try {
-        const { username } = req.body;
-        if (!username) return res.status(400).json({ error: 'Username required.' });
+// --- POSTS API ---
 
-        const { data: user } = await supabase.from('users').select('*').eq('username', username).single();
-        if (!user) return res.status(404).json({ error: 'Scratch user not found in our database.' });
-
-        const timestamp = Date.now();
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
-            headers: { 'User-Agent': 'BlockBuzz-Platform' }
-        });
-        if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found on Scratch.' });
-
-        const verificationCode = 'BB-RESET-' + Math.random().toString(36).substring(2, 6).toUpperCase();
-        req.session.resetUser = { username, verificationCode };
-
-        res.json({ 
-            success: true, 
-            verificationCode, 
-            profileUrl: `https://scratch.mit.edu/users/${username}/`
-        });
-    } catch (err) {
-        console.error("Reset request error:", err);
-        res.status(500).json({ error: 'Server error during password reset request.' });
-    }
-});
-
-app.post('/api/auth/reset-password', async (req, res) => {
-    try {
-        const { username, newPassword } = req.body;
-        const resetSession = req.session.resetUser;
-
-        if (!resetSession || resetSession.username !== username) {
-            return res.status(400).json({ error: 'Reset session expired. Please restart.' });
-        }
-
-        if (!newPassword || newPassword.length < 6) {
-            return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
-        }
-
-        const timestamp = Date.now();
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
-            headers: { 'User-Agent': 'BlockBuzz-Platform' }
-        });
-        
-        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
-        
-        const scratchData = await scratchRes.json();
-        const aboutMe = scratchData.profile?.biography || '';
-        const wiwo = scratchData.profile?.wiwo || ''; 
-        const status = scratchData.profile?.status || '';
-        const combinedText = `${aboutMe} ${wiwo} ${status}`;
-
-        if (!combinedText.includes(resetSession.verificationCode)) {
-            return res.status(400).json({ error: `Verification code "${resetSession.verificationCode}" not found on your profile yet!` });
-        }
-
-        const hashedPassword = await bcrypt.hash(newPassword, 10);
-        const { error } = await supabase
-            .from('users')
-            .update({ password: hashedPassword })
-            .eq('username', username);
-
-        if (error) throw error;
-
-        delete req.session.resetUser;
-        res.json({ success: true, message: 'Password successfully updated!' });
-    } catch (err) {
-        console.error("Password reset error:", err);
-        res.status(500).json({ error: 'Password reset failed.' });
-    }
-});
-
-// --- USER PROFILE ROUTE ---
-app.get('/api/users/:username', async (req, res) => {
-    try {
-        const username = req.params.username;
-        const { data: user, error } = await supabase
-            .from('users')
-            .select('username, pfp, coins, badges, referral_code, created_at, is_admin')
-            .eq('username', username)
-            .single();
-
-        if (error || !user) return res.status(404).json({ error: 'User not found.' });
-
-        const { data: posts } = await supabase
-            .from('posts')
-            .select('*')
-            .eq('author', username)
-            .order('id', { ascending: false });
-
-        res.json({ user, posts: posts || [] });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to fetch user profile.' });
-    }
-});
-
-// --- POSTS ROUTES ---
 app.get('/api/posts', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('posts')
             .select('*')
-            .order('id', { ascending: false });
-        
-        if (error) return res.json([]);
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
         res.json(data || []);
     } catch (err) {
-        res.json([]);
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/api/posts', ensureAuthenticated, async (req, res) => {
+app.post('/api/posts', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'Sign in required' });
+    }
+
+    const { scratchInput, caption } = req.body;
+    if (!scratchInput) {
+        return res.status(400).json({ error: 'Project URL is required.' });
+    }
+
+    // Extract project ID from Scratch URL
+    const match = scratchInput.match(/\/projects\/(\d+)/);
+    const projectId = match ? match[1] : scratchInput.trim();
+
     try {
-        const { scratchInput, caption } = req.body;
-        if (!scratchInput) return res.status(400).json({ error: 'Project link or ID required.' });
-
-        let projectId = scratchInput.trim();
-        if (projectId.includes('scratch.mit.edu')) {
-            const match = projectId.match(/\/projects\/(\d+)/);
-            if (match) projectId = match[1];
+        // Fetch project info from Scratch API
+        const projectRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
+        if (!projectRes.ok) {
+            return res.status(400).json({ error: 'Invalid Scratch project ID or URL.' });
         }
+        const projectData = await projectRes.json();
 
-        const scratchLink = `https://scratch.mit.edu/projects/${projectId}/`;
-        let projectTitle = `Project #${projectId}`;
-        let projectThumbnail = `https://cdn2.scratch.mit.edu/get_image/project/${projectId}_480x360.png`;
-
-        try {
-            const scratchProjRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
-            if (scratchProjRes.ok) {
-                const scratchProjData = await scratchProjRes.json();
-                if (scratchProjData.title) projectTitle = scratchProjData.title;
-                if (scratchProjData.image) projectThumbnail = scratchProjData.image;
-            }
-        } catch (apiErr) {
-            console.log("Could not fetch Scratch API metadata:", apiErr.message);
-        }
-
-        const newPost = {
+        const { data, error } = await supabase.from('posts').insert([{
+            scratch_link: `https://scratch.mit.edu/projects/${projectId}/`,
+            title: projectData.title,
+            thumbnail: projectData.image,
+            caption: caption || '',
             author: req.session.user.username,
             author_pfp: req.session.user.pfp,
-            scratch_link: scratchLink,
-            title: projectTitle,
-            thumbnail: projectThumbnail,
-            caption: caption || '',
             likes: [],
             views: [],
-            created_at: new Date().toISOString()
-        };
+            created_at: new Date()
+        }]).select();
 
-        const { data, error } = await supabase.from('posts').insert([newPost]).select();
-        if (error) return res.status(400).json({ error: `Database error: ${error.message}` });
-
+        if (error) throw error;
         res.json({ success: true, post: data[0] });
     } catch (err) {
-        res.status(500).json({ error: `Server error: ${err.message}` });
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/api/posts/:id/like', ensureAuthenticated, async (req, res) => {
+app.post('/api/posts/:id/like', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Sign in required' });
+    const postId = req.params.id;
+    const username = req.session.user.username;
+
     try {
-        const postId = req.params.id;
-        const username = req.session.user.username;
+        const { data: post, error: fetchErr } = await supabase.from('posts').select('likes').eq('id', postId).single();
+        if (fetchErr) throw fetchErr;
 
-        const { data: post, error } = await supabase.from('posts').select('*').eq('id', postId).single();
-        if (error || !post) return res.status(404).json({ error: 'Post not found' });
-
-        let likes = post.likes || [];
+        let likes = Array.isArray(post.likes) ? post.likes : [];
         if (likes.includes(username)) {
             likes = likes.filter(u => u !== username);
         } else {
             likes.push(username);
         }
 
-        await supabase.from('posts').update({ likes }).eq('id', postId);
-        res.json({ success: true, likes });
+        const { data: updated, error: updateErr } = await supabase.from('posts').update({ likes }).eq('id', postId).select().single();
+        if (updateErr) throw updateErr;
+
+        res.json(updated);
     } catch (err) {
-        res.status(500).json({ error: 'Failed to update like.' });
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/api/posts/:id/view', ensureAuthenticated, async (req, res) => {
+app.post('/api/posts/:id/view', async (req, res) => {
+    const postId = req.params.id;
+    const viewerId = req.session.user ? req.session.user.username : req.ip;
+
     try {
-        const postId = req.params.id;
-        const username = req.session.user.username;
+        const { data: post, error: fetchErr } = await supabase.from('posts').select('views').eq('id', postId).single();
+        if (fetchErr) throw fetchErr;
 
-        const { data: post } = await supabase.from('posts').select('*').eq('id', postId).single();
-        if (!post) return res.sendStatus(404);
-
-        let views = post.views || [];
-        if (!views.includes(username)) {
-            views.push(username);
+        let views = Array.isArray(post.views) ? post.views : [];
+        if (!views.includes(viewerId)) {
+            views.push(viewerId);
             await supabase.from('posts').update({ views }).eq('id', postId);
         }
         res.json({ success: true });
     } catch (err) {
-        res.sendStatus(500);
+        res.status(500).json({ error: err.message });
     }
 });
 
-// --- COMMENTS ROUTES ---
+// --- COMMENTS API ---
+
 app.get('/api/posts/:id/comments', async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('comments')
             .select('*')
             .eq('post_id', req.params.id)
-            .order('created_at', { ascending: true, nullsFirst: false });
-        if (error) return res.json([]);
+            .order('created_at', { ascending: true });
+
+        if (error) throw error;
         res.json(data || []);
     } catch (err) {
-        res.json([]);
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/api/posts/:id/comments', ensureAuthenticated, async (req, res) => {
-    try {
-        const { text } = req.body;
-        if (!text) return res.status(400).json({ error: 'Comment cannot be empty.' });
+app.post('/api/posts/:id/comments', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Sign in required' });
+    const { text } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({ error: 'Comment text required.' });
 
-        const newComment = {
+    try {
+        const { data, error } = await supabase.from('comments').insert([{
             post_id: req.params.id,
             author: req.session.user.username,
-            text: text,
-            created_at: new Date().toISOString()
-        };
+            text: text.trim(),
+            created_at: new Date()
+        }]).select();
 
-        const { data, error } = await supabase.from('comments').insert([newComment]).select();
         if (error) throw error;
-
         res.json({ success: true, comment: data[0] });
     } catch (err) {
-        res.status(500).json({ error: 'Failed to add comment.' });
+        res.status(500).json({ error: err.message });
     }
 });
 
-// --- DISCUSSIONS ROUTES ---
+// --- DISCUSSIONS API ---
+
 app.get('/api/discussions', async (req, res) => {
+    const category = req.query.category || 'scratch';
     try {
-        const category = req.query.category;
-        let query = supabase.from('discussions').select('*').order('id', { ascending: false });
-
-        if (category && ['scratch', 'feedback'].includes(category)) {
-            query = query.eq('category', category);
-        }
-
-        const { data, error } = await query;
-        if (error) return res.json([]);
-        res.json(data || []);
-    } catch (err) {
-        res.json([]);
-    }
-});
-
-app.post('/api/discussions', ensureAuthenticated, async (req, res) => {
-    try {
-        const { title, content, category } = req.body;
-        if (!title || !content || !category) {
-            return res.status(400).json({ error: 'Title, content, and category are required.' });
-        }
-
-        if (!['scratch', 'feedback'].includes(category)) {
-            return res.status(400).json({ error: 'Category must be either "scratch" or "feedback".' });
-        }
-
-        const newDiscussion = {
-            title,
-            content,
-            category,
-            author: req.session.user.username,
-            author_pfp: req.session.user.pfp,
-            upvotes: [],
-            created_at: new Date().toISOString()
-        };
-
-        const { data, error } = await supabase.from('discussions').insert([newDiscussion]).select();
-        if (error) return res.status(400).json({ error: error.message });
-
-        res.json({ success: true, discussion: data[0] });
-    } catch (err) {
-        res.status(500).json({ error: 'Failed to create discussion.' });
-    }
-});
-
-app.post('/api/discussions/:id/upvote', ensureAuthenticated, async (req, res) => {
-    try {
-        const discussionId = req.params.id;
-        const username = req.session.user.username;
-
-        const { data: discussion, error } = await supabase
+        const { data, error } = await supabase
             .from('discussions')
             .select('*')
+            .eq('category', category)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/discussions', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'Sign in required' });
+    }
+
+    const { title, content, category } = req.body;
+    if (!title || !content) {
+        return res.status(400).json({ error: 'Title and content are required.' });
+    }
+
+    try {
+        const { data, error } = await supabase.from('discussions').insert([{
+            title,
+            content,
+            category: category || 'scratch',
+            author: req.session.user.username,
+            author_pfp: req.session.user.pfp,
+            upvotes: []
+        }]).select();
+
+        if (error) throw error;
+        res.json({ success: true, discussion: data[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+app.post('/api/discussions/:id/upvote', async (req, res) => {
+    if (!req.session.user) {
+        return res.status(401).json({ error: 'Sign in required' });
+    }
+
+    const discussionId = req.params.id;
+    const username = req.session.user.username;
+
+    try {
+        const { data: disc, error: fetchErr } = await supabase
+            .from('discussions')
+            .select('upvotes')
             .eq('id', discussionId)
             .single();
 
-        if (error || !discussion) return res.status(404).json({ error: 'Discussion not found' });
+        if (fetchErr) throw fetchErr;
 
-        let upvotes = discussion.upvotes || [];
+        let upvotes = Array.isArray(disc.upvotes) ? disc.upvotes : [];
         if (upvotes.includes(username)) {
             upvotes = upvotes.filter(u => u !== username);
         } else {
             upvotes.push(username);
         }
 
-        await supabase.from('discussions').update({ upvotes }).eq('id', discussionId);
-        res.json({ success: true, upvotes });
+        const { data: updated, error: updateErr } = await supabase
+            .from('discussions')
+            .update({ upvotes })
+            .eq('id', discussionId)
+            .select()
+            .single();
+
+        if (updateErr) throw updateErr;
+        res.json(updated);
     } catch (err) {
-        res.status(500).json({ error: 'Failed to toggle upvote.' });
+        res.status(500).json({ error: err.message });
     }
 });
 
-// --- CONTESTS & STUDIOS ROUTES ---
+// --- CONTESTS API ---
+
 app.get('/api/contests', async (req, res) => {
-    const { data } = await supabase.from('contests').select('*').order('created_at', { ascending: false, nullsFirst: false });
-    res.json(data || []);
+    try {
+        const { data, error } = await supabase.from('contests').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
-app.post('/api/contests', ensureAuthenticated, async (req, res) => {
-    const { title, description, prize, scratchLink } = req.body;
-    const { data, error } = await supabase.from('contests').insert([{
-        title, description, prize, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date().toISOString()
-    }]).select();
-    if (error) return res.status(400).json({ error: error.message });
-    res.json({ success: true, contest: data[0] });
+app.post('/api/contests', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Sign in required' });
+    const { title, description } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title required.' });
+
+    try {
+        const { data, error } = await supabase.from('contests').insert([{
+            title,
+            description: description || '',
+            author: req.session.user.username,
+            created_at: new Date()
+        }]).select();
+
+        if (error) throw error;
+        res.json({ success: true, contest: data[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
+
+// --- STUDIOS API ---
 
 app.get('/api/studios', async (req, res) => {
-    const { data } = await supabase.from('studios').select('*').order('created_at', { ascending: false, nullsFirst: false });
-    res.json(data || []);
+    try {
+        const { data, error } = await supabase.from('studios').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+        res.json(data || []);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
 app.get('/api/studios/:id', async (req, res) => {
     try {
         const { data, error } = await supabase.from('studios').select('*').eq('id', req.params.id).single();
-        if (error || !data) return res.status(404).json({ error: 'Studio not found' });
+        if (error || !data) return res.status(404).json({ error: 'Studio not found.' });
         res.json(data);
     } catch (err) {
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: err.message });
     }
 });
 
-app.post('/api/studios', ensureAuthenticated, async (req, res) => {
-    const { title, description, scratchLink } = req.body;
-    const { data, error } = await supabase.from('studios').insert([{
-        title, description, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date().toISOString()
-    }]).select();
-    if (error) return res.status(400).json({ error: error.message });
-    res.json({ success: true, studio: data[0] });
+app.post('/api/studios', async (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Sign in required' });
+    const { title, description } = req.body;
+    if (!title) return res.status(400).json({ error: 'Title required.' });
+
+    try {
+        const { data, error } = await supabase.from('studios').insert([{
+            title,
+            description: description || '',
+            author: req.session.user.username,
+            created_at: new Date()
+        }]).select();
+
+        if (error) throw error;
+        res.json({ success: true, studio: data[0] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 });
 
+// --- USER PROFILE API ---
+
+app.get('/api/users/:username', async (req, res) => {
+    const username = req.params.username;
+    try {
+        const { data: user, error: userErr } = await supabase
+            .from('users')
+            .select('username, pfp, coins, created_at, referral_code')
+            .eq('username', username)
+            .single();
+
+        if (userErr || !user) {
+            return res.status(404).json({ error: 'User not found.' });
+        }
+
+        const { data: posts, error: postsErr } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('author', username)
+            .order('created_at', { ascending: false });
+
+        if (postsErr) throw postsErr;
+
+        res.json({ user, posts: posts || [] });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Start Server
 app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`BlockBuzz server running on port ${PORT}`);
 });
