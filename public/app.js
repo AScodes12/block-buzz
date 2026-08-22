@@ -333,11 +333,132 @@ async function deletePost(postId) {
     fetchPosts();
 }
 
-// --- PLACEHOLDERS ---
-function fetchContests() { document.getElementById('contests-feed').innerHTML = `<div class="card" style="text-align:center; color:var(--text-secondary);">Contests feature ready.</div>`; }
-function fetchStudios() { document.getElementById('studios-feed').innerHTML = `<div class="card" style="text-align:center; color:var(--text-secondary);">Studios feature ready.</div>`; }
-function submitContest() { alert('Contest advertisement ready!'); }
-function submitStudio() { alert('Studio advertisement ready!'); }
+// --- CONTESTS FEATURE ---
+async function fetchContests() {
+    const feed = document.getElementById('contests-feed');
+    if (!feed) return;
+
+    try {
+        const res = await fetch('/api/contests');
+        const contests = await res.json();
+
+        if (!contests || contests.length === 0) {
+            feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No active contests advertised yet.</div>`;
+            return;
+        }
+
+        feed.innerHTML = contests.map(c => `
+            <div class="card" style="margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <div class="avatar-wrapper" style="width: 24px; height: 24px;"><img src="${c.author_pfp || ''}" alt=""></div>
+                    <span style="font-size: 12px; color: var(--text-secondary);">Hosted by <strong>${c.author}</strong></span>
+                </div>
+                <h3 style="font-size: 16px; margin-bottom: 4px;">${c.title}</h3>
+                <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 8px;">${c.description || ''}</p>
+                ${c.prize ? `<p style="font-size: 13px; color: #d97706; font-weight: bold; margin-bottom: 8px;">🏆 Prize: ${c.prize}</p>` : ''}
+                <a href="${c.scratch_link}" target="_blank" class="btn" style="display: inline-block; text-decoration: none; font-size: 13px; padding: 6px 12px;">Visit Contest on Scratch</a>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load contests', err);
+    }
+}
+
+async function submitContest() {
+    const title = document.getElementById('contest-title')?.value.trim();
+    const description = document.getElementById('contest-desc')?.value.trim();
+    const prize = document.getElementById('contest-prize')?.value.trim();
+    const scratchLink = document.getElementById('contest-link')?.value.trim();
+    const msg = document.getElementById('contest-msg');
+
+    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
+    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
+
+    try {
+        const res = await fetch('/api/contests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, prize, scratchLink })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            document.getElementById('contest-title').value = '';
+            document.getElementById('contest-desc').value = '';
+            document.getElementById('contest-prize').value = '';
+            document.getElementById('contest-link').value = '';
+            showMsg(msg, 'Contest advertised successfully!', 'success');
+            fetchContests();
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Failed to publish contest.', 'error');
+    }
+}
+
+// --- STUDIOS FEATURE ---
+async function fetchStudios() {
+    const feed = document.getElementById('studios-feed');
+    if (!feed) return;
+
+    try {
+        const res = await fetch('/api/studios');
+        const studios = await res.json();
+
+        if (!studios || studios.length === 0) {
+            feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No studios advertised yet.</div>`;
+            return;
+        }
+
+        feed.innerHTML = studios.map(s => `
+            <div class="card" style="margin-bottom: 16px;">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                    <div class="avatar-wrapper" style="width: 24px; height: 24px;"><img src="${s.author_pfp || ''}" alt=""></div>
+                    <span style="font-size: 12px; color: var(--text-secondary);">Advertised by <strong>${s.author}</strong></span>
+                </div>
+                <h3 style="font-size: 16px; margin-bottom: 4px;">${s.title}</h3>
+                <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 10px;">${s.description || ''}</p>
+                <a href="${s.scratch_link}" target="_blank" class="btn" style="display: inline-block; text-decoration: none; font-size: 13px; padding: 6px 12px;">Explore Studio on Scratch</a>
+            </div>
+        `).join('');
+    } catch (err) {
+        console.error('Failed to load studios', err);
+    }
+}
+
+async function submitStudio() {
+    const title = document.getElementById('studio-title')?.value.trim();
+    const description = document.getElementById('studio-desc')?.value.trim();
+    const scratchLink = document.getElementById('studio-link')?.value.trim();
+    const msg = document.getElementById('studio-msg');
+
+    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
+    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
+
+    try {
+        const res = await fetch('/api/studios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, scratchLink })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            document.getElementById('studio-title').value = '';
+            document.getElementById('studio-desc').value = '';
+            document.getElementById('studio-link').value = '';
+            showMsg(msg, 'Studio advertised successfully!', 'success');
+            fetchStudios();
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Failed to publish studio.', 'error');
+    }
+}
+
+// --- STORE PLACEHOLDER ---
 function renderStore() {
     document.getElementById('store-colors').innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Colors loaded via store configurations.</p>`;
     document.getElementById('store-badges').innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Badges loaded via store configurations.</p>`;
