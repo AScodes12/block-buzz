@@ -75,7 +75,7 @@ function renderProfile() {
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
                         <input type="password" id="signup-password" placeholder="Create Password">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
-                        <button onclick="requestVerification()" class="btn">Next: Verify Bio</button>
+                        <button onclick="requestVerification()" class="btn">Next: Verify Profile</button>
                         <div id="account-msg-1" class="inline-msg"></div>
                     </div>
                 </div>
@@ -138,7 +138,7 @@ function switchAuthMode(mode) {
     }
 }
 
-// --- BIO VERIFICATION WORKFLOW ---
+// --- VERIFICATION WORKFLOW ---
 async function requestVerification() {
     const usernameInput = document.getElementById('scratch-username');
     const passwordInput = document.getElementById('signup-password');
@@ -167,13 +167,13 @@ async function requestVerification() {
             container.innerHTML = `
                 <h2>Verify Your Account</h2>
                 <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 13px;">
-                    Temporarily paste this code into your Scratch <strong>"About Me"</strong> or <strong>Status</strong> section:
+                    Paste this code on the <strong>top line</strong> of your <strong>"What I'm working on"</strong> section on Scratch:
                 </p>
                 <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 12px;">
                     <strong style="font-size: 18px; color: var(--accent-color);">${data.verificationCode}</strong>
                 </div>
                 <a href="${data.profileUrl}" target="_blank" class="btn-outline" style="display: block; text-align: center; margin-bottom: 16px; text-decoration: none; padding: 8px;">Open My Scratch Profile ↗</a>
-                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px;">Once saved on Scratch, click below to verify!</p>
+                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px;">Save it on Scratch, wait <strong>15 seconds</strong> for Scratch to update, then click below!</p>
                 <button onclick="confirmVerification()" class="btn">Check Verification</button>
                 <div id="account-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
             `;
@@ -421,27 +421,6 @@ async function fetchContests() {
     } catch (e) { console.error(e); }
 }
 
-async function submitContest() {
-    const title = document.getElementById('contest-title')?.value.trim();
-    const description = document.getElementById('contest-desc')?.value.trim();
-    const prize = document.getElementById('contest-prize')?.value.trim();
-    const scratchLink = document.getElementById('contest-link')?.value.trim();
-    const msg = document.getElementById('contest-msg');
-
-    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
-    if (!title || !scratchLink) return showMsg(msg, 'Title and link required.', 'error');
-
-    const res = await fetch('/api/contests', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, prize, scratchLink })
-    });
-    if (res.ok) {
-        showMsg(msg, 'Contest published!', 'success');
-        fetchContests();
-    }
-}
-
 async function fetchStudios() {
     const feed = document.getElementById('studios-feed');
     if (!feed) return;
@@ -460,26 +439,6 @@ async function fetchStudios() {
             </div>
         `).join('');
     } catch (e) { console.error(e); }
-}
-
-async function submitStudio() {
-    const title = document.getElementById('studio-title')?.value.trim();
-    const description = document.getElementById('studio-desc')?.value.trim();
-    const scratchLink = document.getElementById('studio-link')?.value.trim();
-    const msg = document.getElementById('studio-msg');
-
-    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
-    if (!title || !scratchLink) return showMsg(msg, 'Title and link required.', 'error');
-
-    const res = await fetch('/api/studios', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, scratchLink })
-    });
-    if (res.ok) {
-        showMsg(msg, 'Studio published!', 'success');
-        fetchStudios();
-    }
 }
 
 function renderStore() {
