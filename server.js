@@ -11,10 +11,8 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Trust Render's proxy for accurate rate-limiting & headers
 app.set('trust proxy', 1);
 
-// Initialize Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_ANON_KEY;
 if (!supabaseUrl || !supabaseKey) {
@@ -22,20 +20,18 @@ if (!supabaseUrl || !supabaseKey) {
 }
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public')); // Serves frontend files from public folder
+app.use(express.static('public'));
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'block-buzz-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 } // 1 day
+    cookie: { secure: false, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-// Rate limiter for auth routes
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 20,
@@ -52,13 +48,10 @@ function ensureAuthenticated(req, res, next) {
 }
 
 // --- AUTHENTICATION ROUTES ---
-
-// Check current session
 app.get('/api/auth/me', (req, res) => {
     res.json({ user: req.session.user || null });
 });
 
-// Register Step 1: Generate verification code and profile instructions
 app.post('/api/auth/register-request', async (req, res) => {
     try {
         const { username, password, referralCode } = req.body;
@@ -91,7 +84,6 @@ app.post('/api/auth/register-request', async (req, res) => {
     }
 });
 
-// Register Step 2: Check Scratch Profile Bio, Wiwo, & Status for the code with Cache-Busting
 app.post('/api/auth/verify', async (req, res) => {
     try {
         const { username } = req.body;
@@ -106,12 +98,9 @@ app.post('/api/auth/verify', async (req, res) => {
             headers: { 'User-Agent': 'BlockBuzz-Platform' }
         });
         
-        if (!scratchRes.ok) {
-            return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
-        }
+        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
         
         const scratchData = await scratchRes.json();
-
         const aboutMe = scratchData.profile?.biography || '';
         const wiwo = scratchData.profile?.wiwo || ''; 
         const status = scratchData.profile?.status || '';
@@ -167,7 +156,6 @@ app.post('/api/auth/verify', async (req, res) => {
     }
 });
 
-// Login Route
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -195,7 +183,6 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Logout Route
 app.post('/api/auth/logout', (req, res) => {
     req.session.destroy();
     res.json({ success: true });
@@ -315,7 +302,6 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// Protected Post Creation Route
 app.post('/api/posts', ensureAuthenticated, async (req, res) => {
     try {
         const { scratchInput, caption } = req.body;
