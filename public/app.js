@@ -2,7 +2,7 @@
 let currentUser = null;
 let currentDiscussionCategory = 'scratch';
 
-// --- NEW: DIRECT POST REPLY & COMMENT REPLY FEATURES ---
+// --- POST REPLY & COMMENT REPLY FEATURES ---
 function togglePostReplyBox(postId) {
     const box = document.getElementById('post-reply-box-' + postId);
     if (box) {
@@ -152,10 +152,10 @@ async function loadCommentsForPost(postId) {
         for (let i = 0; i < comments.length; i++) {
             let c = comments[i];
             let cId = c.id || i;
-            html += '<div class="comment-item" style="margin-bottom:6px;">' +
-                '<b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(c.author) + '\')">' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) +
-                ' <span style="font-size:11px; color:var(--text-secondary); cursor:pointer; margin-left:6px;" onclick="toggleReplyBox(\'' + postId + '-' + cId + '\')">Reply</span>' +
-                '<div id="reply-box-' + postId + '-' + cId + '" style="display:none; margin-top:4px; margin-left:12px;" class="comment-input-row">' +
+            html += '<div class="comment-item" style="margin-bottom:8px; padding-bottom:6px; border-bottom:1px solid var(--border-color, #eee);">' +
+                '<div><b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(c.author) + '\')">' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) + '</div>' +
+                '<button class="stat-btn" style="font-size: 11px; padding: 2px 8px; margin-top: 4px; background: var(--bg-hover, #f0f0f0); border-radius: 4px;" onclick="toggleReplyBox(\'' + postId + '-' + cId + '\')">💬 Reply</button>' +
+                '<div id="reply-box-' + postId + '-' + cId + '" style="display:none; margin-top:6px; margin-left:12px;" class="comment-input-row">' +
                     '<input type="text" id="reply-input-' + postId + '-' + cId + '" placeholder="Write a reply..." style="padding: 4px 8px; font-size: 12px;">' +
                     '<button class="btn" style="padding: 4px 12px; font-size: 12px;" onclick="addReply(\'' + postId + '\', \'' + cId + '\', \'reply-input-' + postId + '-' + cId + '\')">Send</button>' +
                 '</div>' +
@@ -509,11 +509,17 @@ async function checkAuth() {
     } catch (err) { console.error('Auth check failed'); }
 }
 
+// --- AUTH UI ---
 function renderAuthUI() {
-    const container = document.getElementById('auth-container');
-    if (!container) return;
+    let container = document.getElementById('auth-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'auth-container';
+        container.style.cssText = 'position: fixed; top: 12px; right: 16px; z-index: 9999; display: flex; align-items: center; gap: 8px;';
+        document.body.appendChild(container);
+    }
     if (currentUser) {
-        container.innerHTML = '<div class="avatar-wrapper" style="width:32px; height:32px; cursor:pointer;" onclick="switchTab(\'account\')"><img src="' + (currentUser.pfp || '') + '"></div><button class="btn-outline" style="padding: 6px 16px; font-size: 13px;" onclick="logout()">Sign out</button>';
+        container.innerHTML = '<div class="avatar-wrapper" style="width:32px; height:32px; cursor:pointer;" onclick="switchTab(\'account\')"><img src="' + (currentUser.pfp || '') + '"></div><button class="btn-outline" style="padding: 6px 16px; font-size: 13px; background:var(--bg-card); color:var(--text-primary);" onclick="logout()">Sign out</button>';
     } else {
         container.innerHTML = '<button class="btn" style="padding: 8px 16px;" onclick="openAuthModal(\'login\')">Sign in</button>';
     }
