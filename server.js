@@ -287,7 +287,7 @@ app.get('/api/users/:username', async (req, res) => {
     }
 });
 
-// --- POSTS ROUTES (Ordered by Post ID) ---
+// --- POSTS ROUTES ---
 app.get('/api/posts', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -423,6 +423,81 @@ app.post('/api/posts/:id/comments', ensureAuthenticated, async (req, res) => {
         res.json({ success: true, comment: data[0] });
     } catch (err) {
         res.status(500).json({ error: 'Failed to add comment.' });
+    }
+});
+
+// --- DISCUSSIONS ROUTES ---
+app.get('/api/discussions', async (req, res) => {
+    try {
+        const category = req.query.category; // Optional filter: 'scratch' or 'feedback'
+        let query = supabase.from('discussions').select('*').order('id', { ascending: false });
+
+        if (category && ['scratch', 'feedback'].includes(category)) {
+            query = query.eq('category', category);
+        }
+
+        const { data, error } = await query;
+        if (error) return res.json([]);
+        res.json(data || []);
+    } catch (err) {
+        res.json([]);
+    }
+});
+
+app.post('/api/discussions', ensureAuthenticated, async (req, res) => {
+    try {
+        const { title, content, category } = req.body;
+        if (!title || !content || !category) {
+            return res.status(400).json({ error: 'Title, content, and category are required.' });
+        }
+
+        if (!['scratch', 'feedback'].includes(category)) {
+            return res.status(400).json({ error: 'Category must be either "scratch" or "feedback".' });
+        }
+
+        const newDiscussion = {
+            title,
+            content,
+            category,
+            author: req.session.user.username,
+            author_pfp: req.session.user.pfp,
+            upvotes: [],
+            created_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase.from('discussions').insert([newDiscussion]).select();
+        if (error) return res.status(400).json({ error: error.message });
+
+        res.json({ success: true, discussion: data[0] });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to create discussion.' });
+    }
+});
+
+app.post('/api/discussions/:id/upvote', ensureAuthenticated, async (req, res) => {
+    try {
+        const discussionId = req.params.id;
+        const username = req.session.user.username;
+
+        const { data: discussion, error } = await supabase
+            .from('discussions')
+            .select('*')
+            .eq('id', discussionId)
+            .single();
+
+        if (error || !discussion) return res.status(404).json({ error: 'Discussion not found' });
+
+        let upvotes = discussion.upvotes || [];
+        if (upvotes.includes(username)) {
+            upvotes = upvotes.filter(u => u !== username); // Remove upvote
+        } else {
+            upvotes.push(username); // Add upvote
+        }
+
+        await supabase.from('discussions').update({ upvotes }).eq('id', discussionId);
+        res.json({ success: true, upvotes });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to toggle upvote.' });
     }
 });
 
