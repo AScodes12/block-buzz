@@ -113,9 +113,10 @@
                 <h3 style="margin-bottom: 4px;">Advertise Your Scratch Studio</h3>
                 <p style="color:var(--text-secondary); margin-bottom: 12px; font-size:14px;">Share your Scratch studio with the community to get more curators!</p>
                 <div class="input-group">
-                    <input type="text" id="studio-input" placeholder="Paste Scratch Studio URL or ID...">
-                    <textarea id="studio-desc" rows="2" placeholder="Why should people join your studio?"></textarea>
-                    <div style="text-align: right;"><button onclick="submitStudio()" class="btn">Advertise Studio</button></div>
+                    <input type="text" id="studio-title" placeholder="Studio Title">
+                    <input type="text" id="studio-link" placeholder="Scratch Studio Link">
+                    <textarea id="studio-desc" placeholder="Studio Description"></textarea>
+                    <button onclick="submitStudio()">Post Studio</button>
                     <div id="studio-msg" class="inline-msg"></div>
                 </div>
             </div>
