@@ -3,82 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockBuzz - Reset Password</title>
-    <style>
-        :root {
-            --bg-color: #f1f5f9; --card-bg: #ffffff; --border-color: #e2e8f0;
-            --text-primary: #0f172a; --text-secondary: #64748b;
-            --accent-color: #2563eb; --accent-hover: #1d4ed8;
-            --radius-md: 12px; --radius-lg: 16px;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-primary); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-
-        .auth-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 30px; width: 100%; max-width: 400px; box-shadow: var(--shadow-sm); }
-        .logo { font-weight: 800; font-size: 1.5rem; color: var(--accent-color); text-align: center; margin-bottom: 20px; letter-spacing: -0.5px; }
-        
-        .input-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px; outline: none; background: #f8fafc; transition: border-color 0.2s, box-shadow 0.2s; }
-        input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent-color); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-
-        .btn { width: 100%; background-color: var(--accent-color); color: #fff; border: none; padding: 12px; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; cursor: pointer; transition: background-color 0.2s; margin-top: 8px; }
-        .btn:hover { background-color: var(--accent-hover); }
-
-        .inline-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 12px; display: none; text-align: center; }
-        .inline-msg.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
-        .inline-msg.success { background: #dcfce7; color: #166534; border: 1px solid #4ade80; }
-
-        .footer-links { text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary); }
-        .footer-links a { color: var(--accent-color); text-decoration: none; font-weight: 600; cursor: pointer; }
-        .footer-links a:hover { text-decoration: underline; }
-    </style>
+    <title>Reset Password - Scratch Platform</title>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body style="display: flex; justify-content: center; align-items: center; min-height: 100vh; background: var(--bg-primary);">
 
-    <div class="auth-card">
-        <div class="logo">BlockBuzz</div>
-        
-        <h3 style="margin-bottom: 6px; text-align: center;">Reset Password</h3>
-        <p style="color: var(--text-secondary); font-size: 13px; text-align: center; margin-bottom: 20px;">Verify via your Scratch profile</p>
-        
-        <!-- Step 1: Request Reset Code -->
-        <div class="input-group" id="reset-step-1">
+    <div class="card" style="max-width: 400px; width: 100%; margin: 20px;">
+        <h2>Reset Password</h2>
+        <p style="color: var(--text-secondary); margin-bottom: 16px; font-size: 13px;">
+            Enter your verified Scratch username to request a password reset code.
+        </p>
+
+        <!-- STEP 1: REQUEST RESET -->
+        <div id="reset-request-form" class="input-group">
             <input type="text" id="reset-username" placeholder="Scratch Username">
-            <button onclick="requestPasswordReset()" class="btn">Get Reset Code</button>
+            <button onclick="requestPasswordReset()" class="btn" style="width: 100%;">Get Reset Code</button>
+            <div id="reset-msg-1" class="inline-msg" style="margin-top: 10px;"></div>
         </div>
 
-        <!-- Step 2: Verify Code on Profile & Set New Password -->
-        <div id="reset-step-2" style="display: none;" class="input-group">
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4;">
-                Add this verification code to your Scratch profile bio or Wiwo:
+        <!-- STEP 2: SUBMIT CODE & NEW PASSWORD (Hidden initially) -->
+        <div id="reset-confirm-form" class="input-group" style="display: none;">
+            <p style="color: var(--text-secondary); margin-bottom: 12px; font-size: 12px;">
+                Paste this code on the top line of your Scratch profile's <strong>"What I'm working on"</strong> section, then enter your new password below:
             </p>
-            <div id="reset-code-box" style="background: #f1f5f9; padding: 10px; text-align: center; font-weight: bold; font-size: 16px; border-radius: 8px; margin-bottom: 8px; color: var(--accent-color);"></div>
-            <input type="password" id="reset-new-password" placeholder="New Password (min 6 chars)">
-            <button onclick="submitPasswordReset()" class="btn">Update Password</button>
+            <div style="background: var(--bg-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 12px;">
+                <strong id="reset-code-display" style="font-size: 16px; color: var(--accent-color);">---</strong>
+            </div>
+            <input type="password" id="new-password" placeholder="New Password">
+            <button onclick="confirmPasswordReset()" class="btn" style="width: 100%;">Update Password</button>
+            <div id="reset-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
         </div>
 
-        <div id="reset-msg" class="inline-msg"></div>
-
-        <div class="footer-links">
-            <p style="margin-top: 15px;"><a href="/login.html">Back to Log In</a></p>
+        <div style="text-align: center; margin-top: 16px;">
+            <a href="index.html" style="font-size: 13px; color: var(--accent-color); text-decoration: none;">← Back to Main App</a>
         </div>
     </div>
 
     <script>
-        let resetUsername = "";
-
-        function showMsg(text, isError = true) {
-            const msg = document.getElementById('reset-msg');
-            msg.textContent = text;
-            msg.className = `inline-msg ${isError ? 'error' : 'success'}`;
-            msg.style.display = 'block';
-        }
+        let resetUsernameValue = '';
 
         async function requestPasswordReset() {
-            const username = document.getElementById('reset-username').value.trim();
-            if (!username) return showMsg('Please enter your username.');
+            const usernameInput = document.getElementById('reset-username');
+            const msg = document.getElementById('reset-msg-1');
+            const username = usernameInput ? usernameInput.value.trim() : '';
+
+            if (!username) {
+                return showMsg(msg, 'Please enter your username.', 'error');
+            }
 
             try {
                 const res = await fetch('/api/auth/reset-request', {
@@ -87,36 +58,56 @@
                     body: JSON.stringify({ username })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
 
-                resetUsername = username;
-                document.getElementById('reset-code-box').textContent = data.verificationCode;
-                document.getElementById('reset-step-1').style.display = 'none';
-                document.getElementById('reset-step-2').style.display = 'block';
-                showMsg('Code generated! Add it to your Scratch profile bio, then enter a new password.', false);
+                if (res.ok) {
+                    resetUsernameValue = username;
+                    document.getElementById('reset-request-form').style.display = 'none';
+                    document.getElementById('reset-confirm-form').style.display = 'block';
+                    document.getElementById('reset-code-display').textContent = data.verificationCode;
+                } else {
+                    showMsg(msg, data.error, 'error');
+                }
             } catch (err) {
-                showMsg(err.message);
+                showMsg(msg, 'Failed to request password reset.', 'error');
             }
         }
 
-        async function submitPasswordReset() {
-            const newPassword = document.getElementById('reset-new-password').value;
-            if (!newPassword || newPassword.length < 6) return showMsg('Password must be at least 6 characters.');
+        async function confirmPasswordReset() {
+            const passwordInput = document.getElementById('new-password');
+            const msg = document.getElementById('reset-msg-2');
+            const newPassword = passwordInput ? passwordInput.value : '';
+
+            if (!newPassword) {
+                return showMsg(msg, 'Please enter a new password.', 'error');
+            }
 
             try {
-                const res = await fetch('/api/auth/reset-password', {
+                const res = await fetch('/api/auth/reset-confirm', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: resetUsername, newPassword })
+                    body: JSON.stringify({ username: resetUsernameValue, newPassword })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
 
-                alert('Password reset successfully! Redirecting to login.');
-                window.location.href = '/login.html';
+                if (res.ok) {
+                    showMsg(msg, 'Password updated successfully! Redirecting...', 'success');
+                    // Redirects directly to index.html instead of login.html after 1.5 seconds
+                    setTimeout(() => {
+                        window.location.href = 'index.html';
+                    }, 1500);
+                } else {
+                    showMsg(msg, data.error, 'error');
+                }
             } catch (err) {
-                showMsg(err.message);
+                showMsg(msg, 'Password reset confirmation failed.', 'error');
             }
+        }
+
+        function showMsg(el, text, type) {
+            if (!el) return;
+            el.textContent = text;
+            el.className = `inline-msg ${type}`;
+            el.style.display = 'block';
         }
     </script>
 </body>
