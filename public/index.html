@@ -3,131 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockBuzz - Secure Scratch Community</title>
-    <style>
-        :root {
-            --bg-color: #f1f5f9; --card-bg: #ffffff; --border-color: #e2e8f0;
-            --text-primary: #0f172a; --text-secondary: #64748b;
-            --accent-color: #2563eb; --accent-hover: #1d4ed8;
-            --radius-md: 12px; --radius-lg: 16px;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
-        }
-
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-primary); line-height: 1.6; padding-bottom: 60px; }
-
-        header { position: sticky; top: 0; z-index: 100; background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border-color); box-shadow: var(--shadow-sm); }
-        .header-container { max-width: 960px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; flex-wrap: wrap; gap: 12px; }
-        .logo { font-weight: 800; font-size: 1.35rem; cursor: pointer; color: var(--accent-color); letter-spacing: -0.5px; }
-
-        nav { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-        .nav-link { padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; color: var(--text-secondary); background: none; border: none; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; }
-        .nav-link:hover { color: var(--accent-color); background-color: #f8fafc; }
-        .nav-link.active { color: var(--accent-color); background-color: #eff6ff; }
-
-        main { max-width: 720px; margin: 28px auto; padding: 0 16px; }
-        .tab-content { display: none; }
-
-        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; box-shadow: var(--shadow-sm); }
-        
-        .input-group { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
-        input[type="text"], textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px; outline: none; background: #f8fafc; transition: all 0.2s; }
-        input[type="text"]:focus, textarea:focus { border-color: var(--accent-color); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-
-        .btn { background-color: var(--accent-color); color: #fff; border: none; padding: 10px 20px; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; cursor: pointer; transition: background-color 0.2s; box-shadow: var(--shadow-sm); }
-        .btn:hover { background-color: var(--accent-hover); }
-        
-        .btn-outline { background-color: transparent; color: var(--accent-color); border: 2px solid var(--accent-color); padding: 8px 16px; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; cursor: pointer; text-decoration: none; display: inline-block; text-align: center; transition: all 0.2s; }
-        .btn-outline:hover { background-color: #eff6ff; }
-
-        .store-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 14px; margin-top: 16px; margin-bottom: 24px; }
-        .avatar-wrapper { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: #e2e8f0; border: 1px solid var(--border-color); }
-        .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
-        .project-thumb { width: 100%; aspect-ratio: 16/10; object-fit: cover; border-radius: var(--radius-md); margin: 14px 0; border: 1px solid var(--border-color); }
-        
-        .inline-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 10px; display: none; }
-        .inline-msg.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
-        .inline-msg.success { background: #dcfce7; color: #166534; border: 1px solid #4ade80; }
-    </style>
+    <title>BlockBuzz</title>
+    <link rel="stylesheet" href="/style.css">
 </head>
 <body>
+    <nav>
+        <a href="/" class="logo">BlockBuzz</a>
+        <ul class="nav-links">
+            <li><a href="/" class="active">Home</a></li>
+            <li><a href="/store">Store</a></li>
+            <li><a href="/contests">Contests</a></li>
+            <li><a href="/studios">Studios</a></li>
+            <li><a href="/profile">Profile</a></li>
+        </ul>
+        <a href="/login" class="btn">Login / Sign Up</a>
+    </nav>
 
-    <header>
-        <div class="header-container">
-            <div class="logo" onclick="switchTab('home')">BlockBuzz</div>
-            <nav>
-                <button class="nav-link active" id="nav-home" onclick="switchTab('home')">Home</button>
-                <button class="nav-link" id="nav-store" onclick="switchTab('store')">Store</button>
-                <button class="nav-link" id="nav-contests" onclick="switchTab('contests')">Contests</button>
-                <button class="nav-link" id="nav-studios" onclick="switchTab('studios')">Studios</button>
-                <button class="nav-link" id="nav-account" onclick="switchTab('account')">Profile</button>
-            </nav>
-            <div id="auth-container" style="display: flex; align-items: center; gap: 12px;"></div>
+    <div class="container">
+        <!-- Share Project Card -->
+        <div class="card">
+            <h2>Share a Scratch Project</h2>
+            <p>Paste your project link to showcase it to the community.</p>
+            <br>
+            <input type="text" placeholder="Paste Scratch Project URL or ID..." id="scratch-input">
+            <br><br>
+            <!-- Explicit inline style added here to forcefully override browser defaults -->
+            <textarea id="caption-input" placeholder="Write a short caption..." style="resize: none !important;"></textarea>
+            <br>
+            <button id="post-btn">Post Project</button>
         </div>
-    </header>
 
-    <main>
-        <section id="home-section" class="tab-content" style="display: block;">
-            <div class="card">
-                <h3 style="margin-bottom: 4px;">Share a Scratch Project</h3>
-                <p style="color:var(--text-secondary); font-size: 13px; margin-bottom: 12px;">Paste your project link to showcase it to the community.</p>
-                <div class="input-group">
-                    <input type="text" id="scratch-input" placeholder="Paste Scratch Project URL or ID...">
-                    <textarea id="post-caption" rows="2" placeholder="Write a short caption..."></textarea>
-                    <div style="text-align: right;"><button onclick="submitPost()" class="btn">Post Project</button></div>
-                    <div id="home-msg" class="inline-msg"></div>
-                </div>
-            </div>
-            <div id="feed"></div>
-        </section>
-
-        <section id="store-section" class="tab-content">
-            <div class="card">
-                <h2>Coin Store</h2>
-                <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Spend your coins on profile cosmetics!</p>
-                <h3 style="font-size: 15px;">Username Colors</h3>
-                <div id="store-colors" class="store-grid"></div>
-                <h3 style="font-size: 15px; margin-top: 16px;">Profile Badges</h3>
-                <div id="store-badges" class="store-grid"></div>
-                <div id="store-msg" class="inline-msg"></div>
-            </div>
-        </section>
-
-        <section id="contests-section" class="tab-content">
-            <div class="card">
-                <h3 style="margin-bottom: 4px;">Advertise Your Scratch Contest</h3>
-                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size:14px;">Running a game jam or contest on Scratch? Share it here!</p>
-                <div class="input-group">
-                    <input type="text" id="contest-input" placeholder="Paste Contest Project or Studio URL/ID...">
-                    <textarea id="contest-desc" rows="2" placeholder="Describe the rules or prizes..."></textarea>
-                    <div style="text-align: right;"><button onclick="submitContest()" class="btn">Advertise Contest</button></div>
-                    <div id="contest-msg" class="inline-msg"></div>
-                </div>
-            </div>
-            <div id="contests-feed"></div>
-        </section>
-
-        <section id="studios-section" class="tab-content">
-            <div class="card">
-                <h3 style="margin-bottom: 4px;">Advertise Your Scratch Studio</h3>
-                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size:14px;">Share your Scratch studio with the community to get more curators!</p>
-                <div class="input-group">
-                    <input type="text" id="studio-title" placeholder="Studio Title">
-                    <input type="text" id="studio-link" placeholder="Scratch Studio Link">
-                    <textarea id="studio-desc" placeholder="Studio Description"></textarea>
-                    <button onclick="submitStudio()" class="btn">Post Studio</button>
-                    <div id="studio-msg" class="inline-msg"></div>
-                </div>
-            </div>
-            <div id="studios-feed"></div>
-        </section>
-
-        <section id="account-section" class="tab-content">
-            <div id="account-profile-content"></div>
-        </section>
-    </main>
-
-    <script src="app.js"></script>
+        <div id="posts-feed">
+            <!-- Dynamic Posts Feed -->
+        </div>
+    </div>
 </body>
 </html>
