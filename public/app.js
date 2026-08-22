@@ -49,40 +49,61 @@ function updateAuthUI() {
             </div>
         `;
     } else {
-        authContainer.innerHTML = `<button onclick="switchTab('account')" class="btn" style="padding: 6px 14px; font-size: 13px;">Login</button>`;
+        authContainer.innerHTML = `<button onclick="switchTab('account')" class="btn" style="padding: 6px 14px; font-size: 13px;">Login / Sign Up</button>`;
     }
 }
 
-// --- PROFILE & VERIFICATION ---
+// --- PROFILE & AUTH MODES ---
 function renderProfile() {
     const container = document.getElementById('account-profile-content');
     if (!container) return;
 
     if (!currentUser) {
         container.innerHTML = `
-            <div class="card" style="text-align: center;">
-                <h2>Scratch Verification</h2>
-                <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 14px;">Link your Scratch account securely using your bio.</p>
-                
-                <div id="step-1" class="input-group">
-                    <input type="text" id="scratch-username" placeholder="Enter your Scratch username...">
-                    <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
-                    <button onclick="requestVerification()" class="btn">Get Verification Code</button>
-                    <div id="account-msg-1" class="inline-msg"></div>
+            <div class="card" style="max-width: 400px; margin: 0 auto;">
+                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                    <button onclick="switchAuthMode('signup')" id="btn-mode-signup" class="btn" style="flex: 1;">Sign Up</button>
+                    <button onclick="switchAuthMode('login')" id="btn-mode-login" class="btn-outline" style="flex: 1;">Log In</button>
                 </div>
 
-                <div id="step-2" class="input-group" style="display: none;">
-                    <p style="font-size: 14px;">Paste this code into your <strong>Scratch Bio</strong> or <strong>Status</strong>:</p>
-                    <div id="code-display" style="font-size: 18px; font-weight: bold; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px dashed var(--accent-color); color: var(--accent-color);"></div>
-                    <button onclick="confirmVerification()" class="btn">I've put it in my bio, Verify Me!</button>
-                    <button onclick="resetVerification()" class="btn-outline" style="margin-top: 6px;">Back</button>
-                    <div id="account-msg-2" class="inline-msg"></div>
+                <!-- SIGN UP FORM -->
+                <div id="auth-signup-form">
+                    <h2>Scratch Sign Up</h2>
+                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Verify via Scratch and create your platform password.</p>
+                    
+                    <div id="signup-step-1" class="input-group">
+                        <input type="text" id="scratch-username" placeholder="Scratch Username">
+                        <input type="password" id="signup-password" placeholder="Create Password">
+                        <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
+                        <button onclick="requestVerification()" class="btn">Get Verification Code</button>
+                        <div id="account-msg-1" class="inline-msg"></div>
+                    </div>
+
+                    <div id="signup-step-2" class="input-group" style="display: none;">
+                        <p style="font-size: 13px;">Paste this code into your <strong>Scratch Bio</strong>:</p>
+                        <div id="code-display" style="font-size: 16px; font-weight: bold; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px dashed var(--accent-color); color: var(--accent-color); text-align: center;"></div>
+                        <button onclick="confirmVerification()" class="btn">Verify & Register</button>
+                        <button onclick="resetVerification()" class="btn-outline" style="margin-top: 6px;">Back</button>
+                        <div id="account-msg-2" class="inline-msg"></div>
+                    </div>
+                </div>
+
+                <!-- LOGIN FORM -->
+                <div id="auth-login-form" style="display: none;">
+                    <h2>Welcome Back</h2>
+                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Log in using your verified username and password.</p>
+                    <div class="input-group">
+                        <input type="text" id="login-username" placeholder="Scratch Username">
+                        <input type="password" id="login-password" placeholder="Password">
+                        <button onclick="loginUser()" class="btn">Log In</button>
+                        <div id="account-msg-3" class="inline-msg"></div>
+                    </div>
                 </div>
             </div>
         `;
     } else {
         container.innerHTML = `
-            <div class="card">
+            <div class="card" style="max-width: 400px; margin: 0 auto;">
                 <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
                     <div class="avatar-wrapper" style="width: 60px; height: 60px;"><img src="${currentUser.pfp}" alt="PFP"></div>
                     <div>
@@ -104,29 +125,58 @@ function renderProfile() {
     }
 }
 
+function switchAuthMode(mode) {
+    const signupForm = document.getElementById('auth-signup-form');
+    const loginForm = document.getElementById('auth-login-form');
+    const btnSignup = document.getElementById('btn-mode-signup');
+    const btnLogin = document.getElementById('btn-mode-login');
+
+    if (!signupForm || !loginForm) return;
+
+    if (mode === 'signup') {
+        signupForm.style.display = 'block';
+        loginForm.style.display = 'none';
+        btnSignup.className = 'btn';
+        btnLogin.className = 'btn-outline';
+    } else {
+        signupForm.style.display = 'none';
+        loginForm.style.display = 'block';
+        btnSignup.className = 'btn-outline';
+        btnLogin.className = 'btn';
+    }
+}
+
 async function requestVerification() {
-    const username = document.getElementById('scratch-username').value.trim();
-    const referralCode = document.getElementById('referral-code-input').value.trim();
+    const usernameInput = document.getElementById('scratch-username');
+    const passwordInput = document.getElementById('signup-password');
+    const referralInput = document.getElementById('referral-code-input');
     const msg = document.getElementById('account-msg-1');
 
-    if (!username) {
-        showMsg(msg, 'Please enter a username.', 'error');
-        return;
+    const username = usernameInput ? usernameInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
+    const referralCode = referralInput ? referralInput.value.trim() : '';
+
+    if (!username || !password) {
+        return showMsg(msg, 'Username and password are required.', 'error');
     }
 
     try {
         const res = await fetch('/api/auth/register-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, referralCode })
+            body: JSON.stringify({ username, password, referralCode })
         });
         const data = await res.json();
 
         if (res.ok) {
             pendingVerification = username;
-            document.getElementById('code-display').textContent = data.verificationCode;
-            document.getElementById('step-1').style.display = 'none';
-            document.getElementById('step-2').style.display = 'flex';
+            const codeDisplay = document.getElementById('code-display');
+            const step1 = document.getElementById('signup-step-1');
+            const step2 = document.getElementById('signup-step-2');
+            
+            if (codeDisplay) codeDisplay.textContent = data.verificationCode;
+            if (step1) step1.style.display = 'none';
+            if (step2) step2.style.display = 'flex';
         } else {
             showMsg(msg, data.error, 'error');
         }
@@ -136,18 +186,35 @@ async function requestVerification() {
 }
 
 function resetVerification() {
-    document.getElementById('step-2').style.display = 'none';
-    document.getElementById('step-1').style.display = 'flex';
+    const step2 = document.getElementById('signup-step-2');
+    const step1 = document.getElementById('signup-step-1');
+    if (step2) step2.style.display = 'none';
+    if (step1) step1.style.display = 'flex';
     pendingVerification = null;
 }
 
 async function confirmVerification() {
     const msg = document.getElementById('account-msg-2');
+    if (!pendingVerification) return showMsg(msg, 'Session expired. Restart registration.', 'error');
+
     try {
-        const res = await fetch('/api/auth/verify', {
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${pendingVerification}`);
+        if (!scratchRes.ok) {
+            return showMsg(msg, 'Could not connect to Scratch API.', 'error');
+        }
+        const scratchData = await scratchRes.json();
+        const bio = scratchData.profile?.bio || '';
+        const status = scratchData.profile?.status || '';
+
+        const res = await fetch('/api/auth/verify-client', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: pendingVerification })
+            body: JSON.stringify({ 
+                username: pendingVerification, 
+                bio, 
+                status, 
+                pfp: scratchData.profile?.images?.['90x90'] || '' 
+            })
         });
         const data = await res.json();
 
@@ -163,7 +230,40 @@ async function confirmVerification() {
     }
 }
 
+async function loginUser() {
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const msg = document.getElementById('account-msg-3');
+
+    const username = usernameInput ? usernameInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
+
+    if (!username || !password) {
+        return showMsg(msg, 'Please enter username and password.', 'error');
+    }
+
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            currentUser = data.user;
+            updateAuthUI();
+            renderProfile();
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Login failed.', 'error');
+    }
+}
+
 async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
     currentUser = null;
     updateAuthUI();
     renderProfile();
@@ -171,9 +271,12 @@ async function logout() {
 
 // --- POSTS, FEED, VIEWS & COMMENTS ---
 async function submitPost() {
-    const scratchInput = document.getElementById('scratch-input').value.trim();
-    const caption = document.getElementById('post-caption').value.trim();
+    const scratchInputEl = document.getElementById('scratch-input');
+    const captionEl = document.getElementById('post-caption');
     const msg = document.getElementById('home-msg');
+
+    const scratchInput = scratchInputEl ? scratchInputEl.value.trim() : '';
+    const caption = captionEl ? captionEl.value.trim() : '';
 
     if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
     if (!scratchInput) return showMsg(msg, 'Please enter a project URL or ID.', 'error');
@@ -187,8 +290,8 @@ async function submitPost() {
         const data = await res.json();
 
         if (res.ok) {
-            document.getElementById('scratch-input').value = '';
-            document.getElementById('post-caption').value = '';
+            if (scratchInputEl) scratchInputEl.value = '';
+            if (captionEl) captionEl.value = '';
             showMsg(msg, 'Project posted successfully!', 'success');
             fetchPosts();
         } else {
@@ -253,13 +356,11 @@ async function fetchPosts() {
                     
                     <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px;">
                         <button onclick="toggleLike('${p.id}')" class="btn-outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-color: ${isLiked ? '#dc2626' : 'var(--border-color)'}; color: ${isLiked ? '#dc2626' : 'var(--text-primary)'}; background: ${isLiked ? '#fee2e2' : 'transparent'};">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="${isLiked ? '#dc2626' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
                             <span>Like (${likeCount})</span>
                         </button>
                         <div style="font-size: 12px; color: var(--text-secondary); padding: 0 4px;">👁️ ${viewCount} views</div>
                     </div>
 
-                    <!-- Inline Comments Section -->
                     <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
                         <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--text-secondary);">Comments</h4>
                         <div style="max-height: 150px; overflow-y: auto; margin-bottom: 8px;">
@@ -296,12 +397,10 @@ function setupViewObserver() {
     document.querySelectorAll('.post-item').forEach(el => observer.observe(el));
 }
 
-// --- INLINE COMMENT ACTIONS ---
 async function submitInlineComment(postId) {
     const textInput = document.getElementById(`comment-input-${postId}`);
     const text = textInput ? textInput.value.trim() : '';
     if (!text) return;
-
     if (!currentUser) return alert('Please login to comment!');
 
     try {
@@ -310,14 +409,9 @@ async function submitInlineComment(postId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text })
         });
-
-        if (res.ok) {
-            fetchPosts();
-        } else {
-            alert('Failed to send comment.');
-        }
+        if (res.ok) fetchPosts();
     } catch (err) {
-        alert('Network error while commenting.');
+        console.error('Comment error', err);
     }
 }
 
@@ -368,7 +462,7 @@ async function submitContest() {
     const titleEl = document.getElementById('contest-title');
     const descEl = document.getElementById('contest-desc');
     const prizeEl = document.getElementById('contest-prize');
-    const linkEl = document.getElementById('contest-link') || document.getElementById('contest-scratch-link') || document.getElementById('contest-url');
+    const linkEl = document.getElementById('contest-link') || document.getElementById('contest-scratch-link');
 
     const title = titleEl ? titleEl.value.trim() : '';
     const description = descEl ? descEl.value.trim() : '';
@@ -385,7 +479,6 @@ async function submitContest() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, description, prize, scratchLink })
         });
-        const data = await res.json();
 
         if (res.ok) {
             if (titleEl) titleEl.value = '';
@@ -395,6 +488,7 @@ async function submitContest() {
             showMsg(msg, 'Contest advertised successfully!', 'success');
             fetchContests();
         } else {
+            const data = await res.json();
             showMsg(msg, data.error, 'error');
         }
     } catch (err) {
@@ -435,7 +529,7 @@ async function fetchStudios() {
 async function submitStudio() {
     const titleEl = document.getElementById('studio-title');
     const descEl = document.getElementById('studio-desc');
-    const linkEl = document.getElementById('studio-link') || document.getElementById('studio-scratch-link') || document.getElementById('studio-url');
+    const linkEl = document.getElementById('studio-link') || document.getElementById('studio-scratch-link');
 
     const title = titleEl ? titleEl.value.trim() : '';
     const description = descEl ? descEl.value.trim() : '';
@@ -451,7 +545,6 @@ async function submitStudio() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, description, scratchLink })
         });
-        const data = await res.json();
 
         if (res.ok) {
             if (titleEl) titleEl.value = '';
@@ -460,6 +553,7 @@ async function submitStudio() {
             showMsg(msg, 'Studio advertised successfully!', 'success');
             fetchStudios();
         } else {
+            const data = await res.json();
             showMsg(msg, data.error, 'error');
         }
     } catch (err) {
@@ -471,8 +565,8 @@ async function submitStudio() {
 function renderStore() {
     const storeColors = document.getElementById('store-colors');
     const storeBadges = document.getElementById('store-badges');
-    if (storeColors) storeColors.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Colors loaded via store configurations.</p>`;
-    if (storeBadges) storeBadges.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Badges loaded via store configurations.</p>`;
+    if (storeColors) storeColors.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Customization store loaded.</p>`;
+    if (storeBadges) storeBadges.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Badge inventory loaded.</p>`;
 }
 
 // --- UTILITIES ---
