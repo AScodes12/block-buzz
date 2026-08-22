@@ -1,4 +1,5 @@
 let currentUser = null;
+let pendingUsername = '';
 
 document.addEventListener('DOMContentLoaded', () => {
     checkSession();
@@ -68,13 +69,13 @@ function renderProfile() {
                 <!-- SIGN UP FORM -->
                 <div id="auth-signup-form">
                     <h2>Scratch Sign Up</h2>
-                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Create your platform account using your Scratch username and a new password.</p>
+                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Create your platform account using your Scratch credentials.</p>
                     
                     <div class="input-group">
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
                         <input type="password" id="signup-password" placeholder="Create Password">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
-                        <button onclick="registerUser()" class="btn">Sign Up</button>
+                        <button onclick="requestVerification()" class="btn">Next: Verify Account</button>
                         <div id="account-msg-1" class="inline-msg"></div>
                     </div>
                 </div>
@@ -137,7 +138,8 @@ function switchAuthMode(mode) {
     }
 }
 
-async function registerUser() {
+// --- VERIFICATION WORKFLOW (Step 1 & 2) ---
+async function requestVerification() {
     const usernameInput = document.getElementById('scratch-username');
     const passwordInput = document.getElementById('signup-password');
     const referralInput = document.getElementById('referral-code-input');
@@ -152,10 +154,44 @@ async function registerUser() {
     }
 
     try {
-        const res = await fetch('/api/auth/register', {
+        const res = await fetch('/api/auth/register-request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password, referralCode })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            pendingUsername = username;
+            const container = document.getElementById('auth-signup-form');
+            container.innerHTML = `
+                <h2>Verify Your Account</h2>
+                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 13px;">
+                    Post this verification code as a comment on our verification project:
+                </p>
+                <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 12px;">
+                    <strong style="font-size: 18px; color: var(--accent-color);">${data.verificationCode}</strong>
+                </div>
+                <a href="${data.verificationProjectUrl}" target="_blank" class="btn-outline" style="display: block; text-align: center; margin-bottom: 16px; text-decoration: none; padding: 8px;">Open Verification Project ↗</a>
+                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px;">Once posted, click below to confirm!</p>
+                <button onclick="confirmVerification()" class="btn">I've Posted the Comment</button>
+                <div id="account-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
+            `;
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Registration request failed.', 'error');
+    }
+}
+
+async function confirmVerification() {
+    const msg = document.getElementById('account-msg-2');
+    try {
+        const res = await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: pendingUsername })
         });
         const data = await res.json();
 
@@ -167,7 +203,7 @@ async function registerUser() {
             showMsg(msg, data.error, 'error');
         }
     } catch (err) {
-        showMsg(msg, 'Registration failed. Try again.', 'error');
+        showMsg(msg, 'Verification check failed. Try again.', 'error');
     }
 }
 
@@ -279,7 +315,6 @@ async function fetchPosts() {
                 commentsHtml = `<p style="color: #ef4444; font-size: 12px;">Failed to load comments.</p>`;
             }
 
-            // Line-art style eye SVG icon for views
             const viewLineArtIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle; margin-right: 2px;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
 
             htmlContent += `
