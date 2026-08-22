@@ -73,7 +73,7 @@ function renderProfile() {
                     
                     <div class="input-group">
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
-                        <input type="password" id="signup-password" placeholder="Create Password" class="form-input">
+                        <input type="password" id="signup-password" placeholder="Create Password">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
                         <button onclick="requestVerification()" class="btn">Next: Verify Profile</button>
                         <div id="account-msg-1" class="inline-msg"></div>
@@ -86,7 +86,7 @@ function renderProfile() {
                     <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Log in using your verified username and password.</p>
                     <div class="input-group">
                         <input type="text" id="login-username" placeholder="Scratch Username">
-                        <input type="password" id="login-password" placeholder="Enter Password" class="form-input">
+                        <input type="password" id="login-password" placeholder="Password">
                         <button onclick="loginUser()" class="btn">Log In</button>
                         <div id="account-msg-3" class="inline-msg"></div>
                     </div>
@@ -138,7 +138,7 @@ function switchAuthMode(mode) {
     }
 }
 
-// --- VERIFICATION WORKFLOW ---
+// --- VERIFICATION WORKFLOW WITH 30s TIMER ---
 async function requestVerification() {
     const usernameInput = document.getElementById('scratch-username');
     const passwordInput = document.getElementById('signup-password');
@@ -173,10 +173,31 @@ async function requestVerification() {
                     <strong style="font-size: 18px; color: var(--accent-color);">${data.verificationCode}</strong>
                 </div>
                 <a href="${data.profileUrl}" target="_blank" class="btn-outline" style="display: block; text-align: center; margin-bottom: 16px; text-decoration: none; padding: 8px;">Open My Scratch Profile ↗</a>
-                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px;">Save it on Scratch, wait <strong>15 seconds</strong> for Scratch to update, then click below!</p>
-                <button onclick="confirmVerification()" class="btn">Check Verification</button>
+                <p id="timer-text" style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px; font-weight: bold;">Please wait <span id="countdown">30</span> seconds for Scratch to sync...</p>
+                <button id="check-btn" onclick="confirmVerification()" class="btn" disabled style="opacity: 0.5; cursor: not-allowed; width: 100%;">Check Verification</button>
                 <div id="account-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
             `;
+
+            // Start 30-second countdown
+            let timeLeft = 30;
+            const countdownEl = document.getElementById('countdown');
+            const checkBtn = document.getElementById('check-btn');
+            const timerText = document.getElementById('timer-text');
+
+            const timer = setInterval(() => {
+                timeLeft--;
+                if (countdownEl) countdownEl.textContent = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    if (timerText) timerText.textContent = "You're ready! Click below to verify:";
+                    if (checkBtn) {
+                        checkBtn.disabled = false;
+                        checkBtn.style.opacity = '1';
+                        checkBtn.style.cursor = 'pointer';
+                    }
+                }
+            }, 1000);
+
         } else {
             showMsg(msg, data.error, 'error');
         }
