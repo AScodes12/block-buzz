@@ -59,7 +59,8 @@ app.post('/api/auth/register-request', async (req, res) => {
         const { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
         if (existing) return res.status(400).json({ error: 'Username already registered.' });
 
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`, {
+        const timestamp = Date.now();
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
             headers: { 'User-Agent': 'BlockBuzz-Platform' }
         });
         if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found.' });
@@ -82,7 +83,7 @@ app.post('/api/auth/register-request', async (req, res) => {
     }
 });
 
-// Register Step 2: Check Scratch Profile Bio, Wiwo, & Status for the code
+// Register Step 2: Check Scratch Profile Bio, Wiwo, & Status for the code with Cache-Busting
 app.post('/api/auth/verify', async (req, res) => {
     try {
         const { username } = req.body;
@@ -96,7 +97,9 @@ app.post('/api/auth/verify', async (req, res) => {
             return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
         }
 
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`, {
+        // Add timestamp to bypass Scratch API caching
+        const timestamp = Date.now();
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
             headers: { 'User-Agent': 'BlockBuzz-Platform' }
         });
         
