@@ -173,6 +173,7 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
+// Resilient Create Post Route with Scratch API Fallback
 app.post('/api/posts', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -186,17 +187,21 @@ app.post('/api/posts', async (req, res) => {
             if (match) projectId = match[1];
         }
 
-        if (!/^\d+$/.test(projectId)) {
-            return res.status(400).json({ error: 'Invalid Scratch project ID or URL.' });
-        }
-
-        const scratchProjRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
-        if (!scratchProjRes.ok) return res.status(404).json({ error: 'Scratch project not found.' });
-        const scratchProjData = await scratchProjRes.json();
-
-        const projectTitle = scratchProjData.title || `Project #${projectId}`;
-        const projectThumbnail = scratchProjData.image || `https://cdn2.scratch.mit.edu/get_image/project/${projectId}_480x360.png`;
         const scratchLink = `https://scratch.mit.edu/projects/${projectId}/`;
+        let projectTitle = `Project #${projectId}`;
+        let projectThumbnail = `https://cdn2.scratch.mit.edu/get_image/project/${projectId}_480x360.png`;
+
+        // Try fetching metadata from Scratch API, but fallback gracefully if blocked or unavailable
+        try {
+            const scratchProjRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
+            if (scratchProjRes.ok) {
+                const scratchProjData = await scratchProjRes.json();
+                if (scratchProjData.title) projectTitle = scratchProjData.title;
+                if (scratchProjData.image) projectThumbnail = scratchProjData.image;
+            }
+        } catch (apiErr) {
+            console.log("Could not fetch Scratch API metadata, using defaults:", apiErr.message);
+        }
 
         const newPost = {
             author: req.session.user.username,
@@ -211,12 +216,15 @@ app.post('/api/posts', async (req, res) => {
         };
 
         const { data, error } = await supabase.from('posts').insert([newPost]).select();
-        if (error) throw error;
+        if (error) {
+            console.error("Supabase insert error on post:", error);
+            return res.status(400).json({ error: `Database error: ${error.message}` });
+        }
 
         res.json({ success: true, post: data[0] });
     } catch (err) {
-        console.error("Create post error:", err);
-        res.status(500).json({ error: 'Failed to create post.' });
+        console.error("Create post critical error:", err);
+        res.status(500).json({ error: `Server error: ${err.message}` });
     }
 });
 
