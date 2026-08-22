@@ -2,6 +2,36 @@ let currentUser = null;
 let currentDiscussionCategory = 'scratch';
 let currentVerificationCode = '';
 
+// --- THEME MANAGEMENT ---
+function loadTheme() {
+    const isLegacy = localStorage.getItem('blockbuzz_legacy_theme') === 'true';
+    if (isLegacy) {
+        document.body.classList.add('legacy-theme');
+    } else {
+        document.body.classList.remove('legacy-theme');
+    }
+    updateThemeButtonUI();
+}
+
+function toggleTheme() {
+    const isLegacy = document.body.classList.contains('legacy-theme');
+    if (isLegacy) {
+        document.body.classList.remove('legacy-theme');
+        localStorage.setItem('blockbuzz_legacy_theme', 'false');
+    } else {
+        document.body.classList.add('legacy-theme');
+        localStorage.setItem('blockbuzz_legacy_theme', 'true');
+    }
+    updateThemeButtonUI();
+}
+
+function updateThemeButtonUI() {
+    const btn = document.getElementById('theme-toggle-btn');
+    if (!btn) return;
+    const isLegacy = document.body.classList.contains('legacy-theme');
+    btn.textContent = isLegacy ? 'Disable Legacy UI' : 'Enable Legacy UI';
+}
+
 // --- AUTH MODAL & CONTROLS ---
 function openAuthModal() {
     document.getElementById('auth-modal').style.display = 'flex';
@@ -24,7 +54,6 @@ function toggleAuthForm(type) {
     }
 }
 
-// STANDARD LOGIN (NO VERIFICATION NEEDED AFTER INITIAL SIGNUP)
 async function submitLogin() {
     const username = document.getElementById('login-username').value.trim();
     const password = document.getElementById('login-password').value;
@@ -56,7 +85,6 @@ async function submitLogin() {
     }
 }
 
-// SIGNUP STEP 1: GENERATE CODE
 async function startSignupVerification() {
     const username = document.getElementById('signup-username').value.trim();
     const password = document.getElementById('signup-password').value;
@@ -88,7 +116,6 @@ async function startSignupVerification() {
     }
 }
 
-// SIGNUP STEP 2: CONFIRM COMMENT & CREATE ACCOUNT
 async function confirmSignupVerification() {
     const username = document.getElementById('signup-username').value.trim();
     const password = document.getElementById('signup-password').value;
@@ -98,11 +125,7 @@ async function confirmSignupVerification() {
         const res = await fetch('/api/auth/confirm-signup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                username,
-                password,
-                code: currentVerificationCode
-            })
+            body: JSON.stringify({ username, password, code: currentVerificationCode })
         });
         const data = await res.json();
 
@@ -147,6 +170,44 @@ function switchTab(tabName) {
     if (tabName === 'account') loadAccountProfile();
 }
 
+// --- PUBLIC USER PROFILES ---
+async function viewUserProfile(username) {
+    switchTab('user-profile');
+    const profileContainer = document.getElementById('user-profile-content');
+    profileContainer.innerHTML = `<div class="card"><p style="text-align:center;">Loading ${escapeHTML(username)}'s profile...</p></div>`;
+
+    try {
+        const res = await fetch(`/api/users/${username}`);
+        if (!res.ok) throw new Error('User not found');
+        const user = await res.json();
+
+        profileContainer.innerHTML = `
+            <div class="card" style="display:flex; align-items:center; gap:20px;">
+                <div class="avatar-wrapper" style="width:80px; height:80px;">
+                    <img src="${user.pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png'}">
+                </div>
+                <div>
+                    <h2 style="font-size: 1.5rem; color:${user.color || 'var(--text-primary)'}">${escapeHTML(user.username)}</h2>
+                    <p style="color:var(--text-secondary); font-size: 15px; margin-top:4px;">Coins: ${user.coins || 0}</p>
+                </div>
+            </div>
+            <h3 style="margin: 24px 0 16px 0;">Recent Posts</h3>
+            <div id="public-user-posts">
+                <p style="color:var(--text-secondary);">Posts will appear here...</p>
+            </div>
+        `;
+    } catch (err) {
+        profileContainer.innerHTML = `
+            <div class="card">
+                <h3 style="color:#991b1b; text-align:center;">Could not load profile for ${escapeHTML(username)}</h3>
+                <div style="text-align:center; margin-top:16px;">
+                    <button class="btn-outline" onclick="switchTab('home')">Return Home</button>
+                </div>
+            </div>
+        `;
+    }
+}
+
 // --- AUTH CHECK & UI ---
 async function checkAuth() {
     try {
@@ -166,17 +227,17 @@ function renderAuthUI() {
 
     if (currentUser) {
         container.innerHTML = `
-            <button class="nav-link" id="nav-notifications" onclick="switchTab('notifications')">
-                🔔 <span id="notif-badge" style="background:#ef4444; color:white; border-radius:50%; padding:2px 6px; font-size:11px; display:none;">0</span>
+            <button class="nav-link" id="nav-notifications" onclick="switchTab('notifications')" style="position:relative; display:flex; align-items:center; gap:6px;">
+                Alerts
+                <span id="notif-badge" class="badge">0</span>
             </button>
-            <div class="avatar-wrapper"><img src="${currentUser.pfp}"></div>
-            <span style="font-weight: 600; font-size: 14px;">${escapeHTML(currentUser.username)}</span>
-            <button class="btn-outline" onclick="logout()">Logout</button>
+            <div class="avatar-wrapper" style="width:36px; height:36px; cursor:pointer;" onclick="switchTab('account')">
+                <img src="${currentUser.pfp}">
+            </div>
+            <button class="btn-outline" style="padding: 8px 16px; font-size: 13px;" onclick="logout()">Logout</button>
         `;
     } else {
-        container.innerHTML = `
-            <button class="btn" onclick="openAuthModal()">Log In / Sign Up</button>
-        `;
+        container.innerHTML = `<button class="btn" onclick="openAuthModal()">Log In / Sign Up</button>`;
     }
 }
 
@@ -195,8 +256,8 @@ async function loadAccountProfile() {
     if (!currentUser) {
         profileContainer.innerHTML = `
             <div class="card" style="text-align: center;">
-                <h3>You are not logged in</h3>
-                <p style="color:var(--text-secondary); margin: 12px 0;">Log in or create an account to view your profile.</p>
+                <h3 style="margin-bottom:12px;">You are not logged in</h3>
+                <p style="color:var(--text-secondary); margin-bottom: 24px;">Log in or create an account to view your profile.</p>
                 <button class="btn" onclick="openAuthModal()">Log In / Sign Up</button>
             </div>
         `;
@@ -205,23 +266,23 @@ async function loadAccountProfile() {
 
     profileContainer.innerHTML = `
         <div class="card">
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <div class="avatar-wrapper" style="width:64px; height:64px;">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div class="avatar-wrapper" style="width:80px; height:80px;">
                     <img src="${currentUser.pfp}">
                 </div>
                 <div>
-                    <h2 style="font-size: 1.25rem;">${escapeHTML(currentUser.username)}</h2>
-                    <p style="color:var(--text-secondary); font-size: 14px;">Coins: 🪙 ${currentUser.coins || 0}</p>
+                    <h2 style="font-size: 1.5rem; color:${currentUser.color || 'var(--text-primary)'}">${escapeHTML(currentUser.username)}</h2>
+                    <p style="color:var(--text-secondary); font-size: 15px; margin-top:4px;">Coins: ${currentUser.coins || 0}</p>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <h3>Your Cosmetics & Account Settings</h3>
-            <p style="color:var(--text-secondary); font-size: 13px; margin-top: 4px;">Equipped Color: <strong style="color:${currentUser.color || 'inherit'}">${currentUser.color || 'Default'}</strong></p>
-            <div style="margin-top: 16px; display:flex; gap:12px;">
-                <button class="btn-outline" onclick="switchTab('store')">Visit Store</button>
-                <a href="reset.html" class="btn-outline" style="text-decoration:none; text-align:center;">Reset Password</a>
+            <h3 style="margin-bottom: 8px;">Your Cosmetics & Settings</h3>
+            <p style="color:var(--text-secondary); font-size: 14px; margin-bottom: 20px;">Equipped Color: <strong style="color:${currentUser.color || 'inherit'}">${currentUser.color || 'Default'}</strong></p>
+            <div style="display:flex; gap:16px;">
+                <button class="btn" onclick="switchTab('store')">Visit Store</button>
+                <a href="reset.html" class="btn-outline">Reset Password</a>
             </div>
         </div>
     `;
@@ -231,10 +292,8 @@ async function loadAccountProfile() {
 function switchDiscussionCategory(category) {
     currentDiscussionCategory = category;
     document.querySelectorAll('.disc-tab-btn').forEach(btn => btn.classList.remove('active'));
-    
     const activeBtn = document.getElementById(`disc-tab-${category}`);
     if (activeBtn) activeBtn.classList.add('active');
-
     loadDiscussions(category);
 }
 
@@ -244,6 +303,7 @@ async function loadDiscussions(category) {
 
     try {
         const res = await fetch(`/api/discussions?category=${category}`);
+        if (!res.ok) throw new Error('Network response was not ok');
         const discussions = await res.json();
 
         if (!discussions || discussions.length === 0) {
@@ -260,34 +320,34 @@ async function loadDiscussions(category) {
                 <div class="card">
                     <div class="discussion-card">
                         <div class="upvote-container">
-                            <button class="upvote-btn ${isUpvoted ? 'upvoted' : ''}" onclick="toggleUpvote(${item.id})">▲</button>
+                            <button class="upvote-btn ${isUpvoted ? 'upvoted' : ''}" onclick="toggleUpvote(${item.id})">^</button>
                             <span class="upvote-count">${upvotes.length}</span>
                         </div>
                         <div style="flex: 1;">
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
-                                <div class="avatar-wrapper" style="width:24px; height:24px;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                                <div class="avatar-wrapper" style="width:28px; height:28px; cursor:pointer;" onclick="viewUserProfile('${escapeHTML(item.author)}')">
                                     <img src="${item.author_pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png'}">
                                 </div>
-                                <span style="font-weight:600; font-size:13px;">${escapeHTML(item.author)}</span>
-                                <span style="font-size:12px; color:var(--text-secondary); margin-left:auto;">${new Date(item.created_at).toLocaleDateString()}</span>
+                                <span class="clickable-user" onclick="viewUserProfile('${escapeHTML(item.author)}')">${escapeHTML(item.author)}</span>
+                                <span style="font-size:13px; color:var(--text-secondary); margin-left:auto;">${new Date(item.created_at).toLocaleDateString()}</span>
                             </div>
-                            <h3 style="font-size: 16px; margin-bottom: 6px; color:var(--text-primary);">${escapeHTML(item.title)}</h3>
-                            <p style="font-size: 14px; color:var(--text-secondary); white-space: pre-wrap;">${escapeHTML(item.content)}</p>
+                            <h3 style="font-size: 1.1rem; margin-bottom: 8px; color:var(--text-primary);">${escapeHTML(item.title)}</h3>
+                            <p style="font-size: 15px; color:var(--text-secondary); white-space: pre-wrap; line-height: 1.6;">${escapeHTML(item.content)}</p>
 
-                            <!-- COMMENTS SECTION -->
-                            <div style="margin-top:16px; border-top:1px solid var(--border-color); padding-top:12px;">
-                                <h4 style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">Comments (${comments.length})</h4>
+                            <div style="margin-top:20px; border-top:1px solid var(--border-color); padding-top:16px;">
+                                <h4 style="font-size:14px; color:var(--text-secondary); margin-bottom:12px;">Comments (${comments.length})</h4>
                                 <div id="comments-list-${item.id}">
                                     ${comments.map(c => `
-                                        <div style="background:#f8fafc; border-radius:8px; padding:8px 12px; margin-bottom:6px; font-size:13px;">
-                                            <strong>${escapeHTML(c.author)}:</strong> ${escapeHTML(c.text)}
+                                        <div style="background:#f8fafc; border:1px solid var(--border-color); border-radius:12px; padding:12px 16px; margin-bottom:8px; font-size:14px;">
+                                            <strong class="clickable-user" onclick="viewUserProfile('${escapeHTML(c.author)}')">${escapeHTML(c.author)}:</strong> 
+                                            <span style="color:var(--text-secondary);">${escapeHTML(c.text)}</span>
                                         </div>
                                     `).join('')}
                                 </div>
                                 
-                                <div style="display:flex; gap:8px; margin-top:8px;">
-                                    <input type="text" id="reply-input-${item.id}" placeholder="Write a reply..." style="padding:6px 12px; font-size:13px;">
-                                    <button class="btn" style="padding:6px 12px; font-size:13px;" onclick="submitReply(${item.id})">Reply</button>
+                                <div style="display:flex; gap:12px; margin-top:12px;">
+                                    <input type="text" id="reply-input-${item.id}" placeholder="Write a reply..." style="padding:10px 16px; font-size:14px;">
+                                    <button class="btn" style="padding:10px 20px; font-size:14px;" onclick="submitReply(${item.id})">Reply</button>
                                 </div>
                             </div>
                         </div>
@@ -296,7 +356,7 @@ async function loadDiscussions(category) {
             `;
         }).join('');
     } catch (err) {
-        feed.innerHTML = `<div class="card"><p style="color:#991b1b;">Failed to load discussions.</p></div>`;
+        feed.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">Feed could not be loaded at this time.</p></div>`;
     }
 }
 
@@ -333,14 +393,9 @@ async function submitDiscussion() {
 }
 
 async function submitReply(discussionId) {
-    if (!currentUser) {
-        alert('Please log in to reply.');
-        return;
-    }
-
+    if (!currentUser) return alert('Please log in to reply.');
     const input = document.getElementById(`reply-input-${discussionId}`);
     const text = input ? input.value : '';
-
     if (!text.trim()) return;
 
     try {
@@ -350,7 +405,6 @@ async function submitReply(discussionId) {
             body: JSON.stringify({ text })
         });
         const data = await res.json();
-
         if (data.success) {
             input.value = '';
             loadDiscussions(currentDiscussionCategory);
@@ -363,29 +417,23 @@ async function submitReply(discussionId) {
 }
 
 async function toggleUpvote(id) {
-    if (!currentUser) {
-        alert('Please log in to upvote.');
-        return;
-    }
-
+    if (!currentUser) return alert('Please log in to upvote.');
     try {
         const res = await fetch(`/api/discussions/${id}/upvote`, { method: 'POST' });
         const data = await res.json();
-        if (data.success) {
-            loadDiscussions(currentDiscussionCategory);
-        }
+        if (data.success) loadDiscussions(currentDiscussionCategory);
     } catch (err) {
         console.error('Upvote failed:', err);
     }
 }
 
-// --- CONTESTS FEATURE ---
+// --- CONTESTS & STUDIOS ---
 async function loadContests() {
     const feed = document.getElementById('contests-feed');
     if (!feed) return;
-
     try {
         const res = await fetch('/api/contests');
+        if (!res.ok) throw new Error('API Error');
         const contests = await res.json();
 
         if (!contests || contests.length === 0) {
@@ -395,130 +443,68 @@ async function loadContests() {
 
         feed.innerHTML = contests.map(c => `
             <div class="card">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                    <div class="avatar-wrapper"><img src="${c.author_pfp}"></div>
-                    <span style="font-weight:600;">${escapeHTML(c.author)}</span>
-                    <span style="font-size:12px; color:var(--text-secondary); margin-left:auto;">${new Date(c.created_at).toLocaleDateString()}</span>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                    <div class="avatar-wrapper" style="cursor:pointer;" onclick="viewUserProfile('${escapeHTML(c.author)}')"><img src="${c.author_pfp}"></div>
+                    <span class="clickable-user" onclick="viewUserProfile('${escapeHTML(c.author)}')">${escapeHTML(c.author)}</span>
+                    <span style="font-size:13px; color:var(--text-secondary); margin-left:auto;">${new Date(c.created_at).toLocaleDateString()}</span>
                 </div>
                 <a href="${c.contest_link}" target="_blank" style="text-decoration:none; color:inherit;">
                     <img class="project-thumb" src="${c.thumbnail || 'https://scratch.mit.edu/images/scratch-og.png'}">
-                    <h3 style="font-size:16px; color:var(--accent-color);">${escapeHTML(c.title || 'Scratch Contest')}</h3>
+                    <h3 style="font-size:1.1rem; color:var(--accent-color); margin-top:8px;">${escapeHTML(c.title || 'Scratch Contest')}</h3>
                 </a>
-                <p style="font-size:14px; color:var(--text-secondary); margin-top:6px;">${escapeHTML(c.description)}</p>
+                <p style="font-size:15px; color:var(--text-secondary); margin-top:8px;">${escapeHTML(c.description)}</p>
             </div>
         `).join('');
     } catch (err) {
-        feed.innerHTML = `<div class="card"><p style="color:#991b1b;">Failed to load contests.</p></div>`;
+        feed.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">Could not load contests at this time.</p></div>`;
     }
 }
 
-async function submitContest() {
-    const contestLink = document.getElementById('contest-input').value;
-    const description = document.getElementById('contest-desc').value;
-    const msg = document.getElementById('contest-msg');
-
-    if (!contestLink || !description) {
-        showMsg(msg, 'All fields are required.', 'error');
-        return;
-    }
-
-    try {
-        const res = await fetch('/api/contests', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contestLink, description })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            document.getElementById('contest-input').value = '';
-            document.getElementById('contest-desc').value = '';
-            showMsg(msg, 'Contest posted successfully!', 'success');
-            loadContests();
-        } else {
-            showMsg(msg, data.error || 'Failed to post contest.', 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Server error posting contest.', 'error');
-    }
-}
-
-// --- STUDIOS FEATURE ---
 async function loadStudios() {
     const feed = document.getElementById('studios-feed');
     if (!feed) return;
-
     try {
         const res = await fetch('/api/studios');
+        if (!res.ok) throw new Error('API Error');
         const studios = await res.json();
 
         if (!studios || studios.length === 0) {
-            feed.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">No studios promoted yet. Promote yours above!</p></div>`;
+            feed.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">No studios promoted yet.</p></div>`;
             return;
         }
 
         feed.innerHTML = studios.map(s => `
             <div class="card">
-                <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
-                    <div class="avatar-wrapper"><img src="${s.author_pfp}"></div>
-                    <span style="font-weight:600;">${escapeHTML(s.author)}</span>
+                <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+                    <div class="avatar-wrapper" style="cursor:pointer;" onclick="viewUserProfile('${escapeHTML(s.author)}')"><img src="${s.author_pfp}"></div>
+                    <span class="clickable-user" onclick="viewUserProfile('${escapeHTML(s.author)}')">${escapeHTML(s.author)}</span>
                 </div>
-                <h3 style="font-size:16px; margin-bottom:4px;">
+                <h3 style="font-size:1.1rem; margin-bottom:8px;">
                     <a href="${s.link}" target="_blank" style="color:var(--accent-color); text-decoration:none;">${escapeHTML(s.title)}</a>
                 </h3>
-                <p style="font-size:14px; color:var(--text-secondary);">${escapeHTML(s.description)}</p>
+                <p style="font-size:15px; color:var(--text-secondary);">${escapeHTML(s.description)}</p>
             </div>
         `).join('');
     } catch (err) {
-        feed.innerHTML = `<div class="card"><p style="color:#991b1b;">Failed to load studios.</p></div>`;
+        feed.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">Could not load studios at this time.</p></div>`;
     }
 }
 
-async function submitStudio() {
-    const title = document.getElementById('studio-title').value;
-    const link = document.getElementById('studio-link').value;
-    const description = document.getElementById('studio-desc').value;
-    const msg = document.getElementById('studio-msg');
-
-    if (!title || !link || !description) {
-        showMsg(msg, 'All fields are required.', 'error');
-        return;
-    }
-
-    try {
-        const res = await fetch('/api/studios', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, link, description })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            document.getElementById('studio-title').value = '';
-            document.getElementById('studio-link').value = '';
-            document.getElementById('studio-desc').value = '';
-            showMsg(msg, 'Studio posted successfully!', 'success');
-            loadStudios();
-        } else {
-            showMsg(msg, data.error || 'Failed to post studio.', 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Server error posting studio.', 'error');
-    }
-}
-
-// --- NOTIFICATIONS FEATURE ---
+// --- NOTIFICATIONS (WITH ERROR HANDLING FIX) ---
 async function loadUnreadNotificationCount() {
     try {
         const res = await fetch('/api/notifications/unread-count');
+        if (!res.ok) return; 
         const data = await res.json();
         const badge = document.getElementById('notif-badge');
         if (badge && data.count > 0) {
             badge.textContent = data.count;
             badge.style.display = 'inline-block';
+        } else if (badge) {
+            badge.style.display = 'none';
         }
     } catch (err) {
-        console.error('Error fetching notifications count:', err);
+        console.error('Silent error fetching notifications count:', err);
     }
 }
 
@@ -528,28 +514,38 @@ async function loadNotifications() {
 
     try {
         const res = await fetch('/api/notifications');
+        
+        // Fix: Properly handle missing backend routes gracefully instead of breaking
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        
         const notifs = await res.json();
 
         if (!notifs || notifs.length === 0) {
-            section.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">No notifications yet.</p></div>`;
+            section.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">You have no notifications yet.</p></div>`;
             return;
         }
 
         section.innerHTML = `
             <div class="card">
-                <h3>Notifications</h3>
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
+                <h3 style="margin-bottom:16px;">Your Alerts</h3>
+                <div style="display:flex; flex-direction:column; gap:12px;">
                     ${notifs.map(n => `
-                        <div style="padding:10px 14px; background:${n.read ? '#ffffff' : '#eff6ff'}; border:1px solid var(--border-color); border-radius:8px; font-size:14px;">
+                        <div style="padding:16px; background:${n.read ? 'transparent' : '#f8fafc'}; border:1px solid var(--border-color); border-radius:var(--radius-md); font-size:15px;">
                             ${escapeHTML(n.message)}
-                            <div style="font-size:11px; color:var(--text-secondary); margin-top:2px;">${new Date(n.created_at).toLocaleString()}</div>
+                            <div style="font-size:13px; color:var(--text-secondary); margin-top:6px;">${new Date(n.created_at).toLocaleString()}</div>
                         </div>
                     `).join('')}
                 </div>
             </div>
         `;
     } catch (err) {
-        section.innerHTML = `<div class="card"><p style="color:#991b1b;">Failed to load notifications.</p></div>`;
+        // Fix: Render a clean fallback card instead of just a raw error message
+        section.innerHTML = `
+            <div class="card">
+                <h3 style="margin-bottom:8px;">Notifications</h3>
+                <p style="color:var(--text-secondary); text-align:center; padding: 24px 0;">No notifications found or service unavailable.</p>
+            </div>
+        `;
     }
 }
 
@@ -560,6 +556,7 @@ async function loadFeed() {
 
     try {
         const res = await fetch('/api/posts');
+        if (!res.ok) throw new Error('API Error');
         const posts = await res.json();
 
         if (!posts || posts.length === 0) {
@@ -569,19 +566,19 @@ async function loadFeed() {
 
         feed.innerHTML = posts.map(post => `
             <div class="card">
-                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                    <div class="avatar-wrapper"><img src="${post.author_pfp}"></div>
-                    <span style="font-weight:600;">${escapeHTML(post.author)}</span>
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <div class="avatar-wrapper" style="cursor:pointer;" onclick="viewUserProfile('${escapeHTML(post.author)}')"><img src="${post.author_pfp}"></div>
+                    <span class="clickable-user" onclick="viewUserProfile('${escapeHTML(post.author)}')">${escapeHTML(post.author)}</span>
                 </div>
                 <a href="${post.scratch_link}" target="_blank" style="text-decoration:none; color:inherit;">
                     <img class="project-thumb" src="${post.thumbnail}">
-                    <h3 style="font-size:16px; color:var(--accent-color);">${escapeHTML(post.title)}</h3>
+                    <h3 style="font-size:1.1rem; color:var(--accent-color); margin-top:8px;">${escapeHTML(post.title)}</h3>
                 </a>
-                <p style="font-size:14px; color:var(--text-secondary); margin-top:6px;">${escapeHTML(post.caption || '')}</p>
+                <p style="font-size:15px; color:var(--text-secondary); margin-top:8px;">${escapeHTML(post.caption || '')}</p>
             </div>
         `).join('');
     } catch (err) {
-        feed.innerHTML = `<div class="card"><p style="color:#991b1b;">Failed to load feed.</p></div>`;
+        feed.innerHTML = `<div class="card"><p style="color:var(--text-secondary); text-align:center;">Feed could not be loaded at this time.</p></div>`;
     }
 }
 
@@ -632,6 +629,7 @@ function escapeHTML(str) {
 
 // Initial Load
 document.addEventListener('DOMContentLoaded', () => {
+    loadTheme();
     checkAuth();
     loadFeed();
 });
