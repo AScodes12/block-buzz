@@ -54,6 +54,7 @@
         .inline-msg.success { background: #e6f4ea; color: #137333; border: 1px solid #ceead6; }
         .clickable-user { font-weight: 500; font-size: 14px; color: var(--text-primary); cursor: pointer; }
         .clickable-user:hover { color: var(--accent-color); text-decoration: underline; }
+        .verified-badge { display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px; background: #1a73e8; color: #fff; border-radius: 50%; font-size: 9px; margin-left: 4px; vertical-align: middle; }
         .discussions-tab-bar { display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }
         .disc-tab-btn { padding: 8px 16px; border-radius: 99px; font-weight: 500; font-size: 14px; color: var(--text-secondary); background: transparent; border: 1px solid transparent; cursor: pointer; }
         .disc-tab-btn.active { background: #e8f0fe; color: #1a73e8; }
@@ -119,7 +120,7 @@
         <section id="store-section" class="tab-content">
             <div class="card">
                 <h2 style="font-size: 20px; margin-bottom: 8px;">Cosmetic Store</h2>
-                <p style="color:var(--text-secondary); font-size: 14px;">Customize your profile appearance.</p>
+                <p style="color:var(--text-secondary); font-size: 14px;">Customize your profile appearance with coins.</p>
             </div>
         </section>
 
@@ -149,13 +150,18 @@
             <div id="studios-feed"></div>
         </section>
 
+        <!-- Studio Detail Section -->
         <section id="studio-detail-section" class="tab-content">
             <div id="studio-detail-content"></div>
         </section>
         
-        <section id="notifications-section" class="tab-content"></section>
-        <section id="account-section" class="tab-content"><div id="account-profile-content"></div></section>
-        <section id="user-profile-section" class="tab-content"><div id="user-profile-content"></div></section>
+        <!-- User & Account Profile Sections -->
+        <section id="account-section" class="tab-content">
+            <div id="account-profile-content"></div>
+        </section>
+        <section id="user-profile-section" class="tab-content">
+            <div id="user-profile-content"></div>
+        </section>
 
         <section id="settings-section" class="tab-content">
             <div class="card">
