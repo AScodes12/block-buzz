@@ -1,117 +1,143 @@
-/* DISCUSSION TAB BAR */
-.tab-bar {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 20px;
-    border-bottom: 2px solid #e0e0e0;
-    padding-bottom: 8px;
-}
-
-.tab-btn {
-    background: none;
-    border: none;
-    font-size: 1rem;
-    font-weight: 600;
-    padding: 8px 16px;
-    cursor: pointer;
-    color: #666;
-    border-radius: 6px;
-    transition: background 0.2s, color 0.2s;
-}
-
-.tab-btn.active {
-    background-color: #4d97ff;
-    color: white;
-}
-
-/* DISCUSSION LIST & CARDS */
-.discussions-list {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-}
-
-.discussion-card {
-    display: flex;
-    background: #ffffff;
-    border: 1px solid #e2e8f0;
-    border-radius: 8px;
-    padding: 16px;
-    gap: 16px;
-    align-items: flex-start;
-}
-
-.upvote-box {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    background: #f8fafc;
-    border: 1px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 8px 12px;
-    min-width: 44px;
-}
-
-.upvote-btn {
-    background: none;
-    border: none;
-    font-size: 1.2rem;
-    cursor: pointer;
-    color: #64748b;
-    line-height: 1;
-}
-
-.upvote-btn.active {
-    color: #4d97ff;
-}
-
-.upvote-count {
-    font-weight: bold;
-    font-size: 0.9rem;
-    color: #334155;
-    margin-top: 4px;
-}
-
-.discussion-main {
-    flex-grow: 1;
-}
-
-.discussion-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-size: 0.85rem;
-    color: #64748b;
-    margin-bottom: 6px;
-}
-
-.author-pfp-sm {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-}
-
-.badge-category {
-    background: #e2e8f0;
-    color: #334155;
-    padding: 2px 8px;
-    border-radius: 12px;
-    font-size: 0.75rem;
-    text-transform: capitalize;
-    margin-left: auto;
-}
-
-.discussion-title {
-    margin: 0 0 6px 0;
-    font-size: 1.1rem;
-    color: #1e293b;
-}
-
-.discussion-content {
+/* --- Global Reset & Base Styles --- */
+* {
+    box-sizing: border-box;
     margin: 0;
-    color: #475569;
-    font-size: 0.95rem;
-    line-height: 1.4;
-    white-space: pre-wrap;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+body {
+    background-color: #f4f6f9;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+/* --- Navigation Bar --- */
+nav {
+    background-color: #ffffff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 30px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.logo {
+    font-size: 24px;
+    font-weight: bold;
+    color: #0056b3;
+    text-decoration: none;
+}
+
+.nav-links {
+    display: flex;
+    gap: 20px;
+    list-style: none;
+    align-items: center;
+}
+
+.nav-links a {
+    text-decoration: none;
+    color: #555;
+    font-weight: 500;
+    transition: color 0.2s;
+}
+
+.nav-links a:hover, .nav-links a.active {
+    color: #0056b3;
+}
+
+/* --- Buttons --- */
+button, .btn {
+    background-color: #0056b3;
+    color: #ffffff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: background-color 0.2s;
+}
+
+button:hover, .btn:hover {
+    background-color: #004085;
+}
+
+/* --- Form Elements & Resizing Fix --- */
+input[type="text"], 
+input[type="password"], 
+input[type="email"], 
+input[type="search"],
+textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 14px;
+    resize: none !important; /* Completely disables manual resizing across all browsers */
+    outline: none;
+    transition: border-color 0.2s;
+    background-color: #ffffff;
+}
+
+input[type="text"]:focus, 
+input[type="password"]:focus, 
+input[type="email"]:focus, 
+textarea:focus {
+    border-color: #0056b3;
+}
+
+/* Specific explicit rule for textareas and caption boxes */
+textarea {
+    resize: none !important;
+    min-height: 80px;
+}
+
+/* --- Containers & Cards --- */
+.container {
+    max-width: 800px;
+    margin: 30px auto;
+    padding: 0 20px;
+    width: 100%;
+}
+
+.card {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+    margin-bottom: 20px;
+}
+
+/* --- Post Feed & Items --- */
+.post-card {
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.post-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.post-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.post-thumbnail {
+    width: 100%;
+    max-height: 400px;
+    object-fit: cover;
+    border-radius: 6px;
+    margin: 10px 0;
 }
