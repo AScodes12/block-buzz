@@ -1,6 +1,8 @@
+// --- GLOBAL STATE ---
 let currentUser = null;
 let currentDiscussionCategory = 'scratch';
 
+// --- THEME MANAGEMENT ---
 function loadTheme() {
     const isLegacy = localStorage.getItem('blockbuzz_legacy_theme') === 'true';
     if (isLegacy) document.body.classList.add('legacy-theme');
@@ -24,6 +26,7 @@ function updateThemeButtonUI() {
     if (btn) btn.textContent = document.body.classList.contains('legacy-theme') ? 'Disable Legacy UI' : 'Enable Legacy UI';
 }
 
+// --- NAVIGATION & TABS ---
 function switchTab(tabName) {
     document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
     document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
@@ -432,6 +435,7 @@ async function loadAccountProfile() {
     '</div>';
 }
 
+// --- AUTHENTICATION ---
 async function checkAuth() {
     try {
         const res = await fetch('/api/auth/me');
@@ -587,7 +591,7 @@ async function logout() {
     switchTab('home');
 }
 
-// --- UTILS ---
+// --- UTILITY FUNCTIONS ---
 function showMsg(element, text, type) { 
     if (!element) return; 
     element.textContent = text; 
@@ -602,6 +606,7 @@ function escapeHTML(str) {
     }) : ''; 
 }
 
+// --- APP INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', function() { 
     loadTheme(); 
     checkAuth(); 
