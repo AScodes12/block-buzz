@@ -134,7 +134,7 @@ app.post('/api/auth/verify', async (req, res) => {
             badges: badges,
             referral_code: newReferralCode,
             is_admin: false,
-            created_at: new Date().toISOString() // Includes exact date and time
+            created_at: new Date().toISOString()
         };
 
         const { data, error } = await supabase.from('users').insert([newUser]).select();
@@ -191,6 +191,81 @@ app.post('/api/auth/login', async (req, res) => {
 app.post('/api/auth/logout', (req, res) => {
     req.session.destroy();
     res.json({ success: true });
+});
+
+// --- PASSWORD RESET ROUTES ---
+app.post('/api/auth/reset-request', async (req, res) => {
+    try {
+        const { username } = req.body;
+        if (!username) return res.status(400).json({ error: 'Username required.' });
+
+        const { data: user } = await supabase.from('users').select('*').eq('username', username).single();
+        if (!user) return res.status(404).json({ error: 'Scratch user not found in our database.' });
+
+        const timestamp = Date.now();
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
+            headers: { 'User-Agent': 'BlockBuzz-Platform' }
+        });
+        if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found on Scratch.' });
+
+        const verificationCode = 'BB-RESET-' + Math.random().toString(36).substring(2, 6).toUpperCase();
+        req.session.resetUser = { username, verificationCode };
+
+        res.json({ 
+            success: true, 
+            verificationCode, 
+            profileUrl: `https://scratch.mit.edu/users/${username}/`
+        });
+    } catch (err) {
+        console.error("Reset request error:", err);
+        res.status(500).json({ error: 'Server error during password reset request.' });
+    }
+});
+
+app.post('/api/auth/reset-password', async (req, res) => {
+    try {
+        const { username, newPassword } = req.body;
+        const resetSession = req.session.resetUser;
+
+        if (!resetSession || resetSession.username !== username) {
+            return res.status(400).json({ error: 'Reset session expired. Please restart.' });
+        }
+
+        if (!newPassword || newPassword.length < 6) {
+            return res.status(400).json({ error: 'Password must be at least 6 characters long.' });
+        }
+
+        const timestamp = Date.now();
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
+            headers: { 'User-Agent': 'BlockBuzz-Platform' }
+        });
+        
+        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
+        
+        const scratchData = await scratchRes.json();
+        const aboutMe = scratchData.profile?.biography || '';
+        const wiwo = scratchData.profile?.wiwo || ''; 
+        const status = scratchData.profile?.status || '';
+        const combinedText = `${aboutMe} ${wiwo} ${status}`;
+
+        if (!combinedText.includes(resetSession.verificationCode)) {
+            return res.status(400).json({ error: `Verification code "${resetSession.verificationCode}" not found on your profile yet!` });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        const { error } = await supabase
+            .from('users')
+            .update({ password: hashedPassword })
+            .eq('username', username);
+
+        if (error) throw error;
+
+        delete req.session.resetUser;
+        res.json({ success: true, message: 'Password successfully updated!' });
+    } catch (err) {
+        console.error("Password reset error:", err);
+        res.status(500).json({ error: 'Password reset failed.' });
+    }
 });
 
 // --- USER PROFILE ROUTE ---
@@ -269,7 +344,7 @@ app.post('/api/posts', async (req, res) => {
             caption: caption || '',
             likes: [],
             views: [],
-            created_at: new Date().toISOString() // Exact date and time string
+            created_at: new Date().toISOString()
         };
 
         const { data, error } = await supabase.from('posts').insert([newPost]).select();
