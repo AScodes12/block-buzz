@@ -66,20 +66,36 @@ app.post('/api/auth/register-request', authLimiter, (req, res) => {
 
 app.post('/api/auth/verify', authLimiter, async (req, res) => {
     const username = cleanInput(req.body.username);
+    if (!username) return res.status(400).json({ error: 'Username is required.' });
+
     const key = username.toLowerCase();
     const pending = pendingVerifications[key];
 
-    if (!pending || pending.expiresAt < Date.now()) return res.status(400).json({ error: 'Session expired.' });
+    if (!pending || pending.expiresAt < Date.now()) {
+        return res.status(400).json({ error: 'Session expired. Please request a new code.' });
+    }
 
     try {
         const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${encodeURIComponent(username)}`);
-        if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch profile not found.' });
+        
+        if (!scratchRes.ok) {
+            return res.status(404).json({ error: 'Scratch profile not found.' });
+        }
 
         const scratchData = await scratchRes.json();
-        const bioText = (scratchData.profile.bio + ' ' + scratchData.profile.status).toUpperCase();
+        
+        if (!scratchData.profile) {
+            return res.status(400).json({ error: 'Could not read Scratch profile data.' });
+        }
 
-        if (!bioText.includes(pending.code.toUpperCase())) return res.status(400).json({ error: 'Code not found in bio.' });
+        const bio = scratchData.profile.bio || '';
+        const status = scratchData.profile.status || '';
+        const bioText = (bio + ' ' + status).toUpperCase();
+
+        if (!bioText.includes(pending.code.toUpperCase())) {
+            return res.status(400).json({ error: 'Code not found in your Scratch bio or status yet.' });
+        }
 
         let { data: existingUser } = await supabase.from('users').select('*').eq('username', scratchData.username).single();
 
@@ -88,14 +104,14 @@ app.post('/api/auth/verify', authLimiter, async (req, res) => {
             if (pending.referralCode) {
                 const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
                 if (referrer) {
-                    await supabase.from('users').update({ coins: referrer.coins + 10 }).eq('username', referrer.username);
-                    coins += 10; // Referral reward = 10 coins
+                    await supabase.from('users').update({ coins: referrer.coins + 100 }).eq('username', referrer.username);
+                    coins += 100;
                 }
             }
 
             const newUser = {
                 username: scratchData.username,
-                pfp: scratchData.profile.images['90x90'],
+                pfp: scratchData.profile.images ? scratchData.profile.images['90x90'] : '',
                 coins: coins,
                 referral_code: `REF-${crypto.randomBytes(2).toString('hex').toUpperCase()}`,
                 color: '#0f172a',
@@ -110,15 +126,9 @@ app.post('/api/auth/verify', authLimiter, async (req, res) => {
         req.session.username = scratchData.username;
         res.json({ success: true, user: existingUser });
     } catch (err) {
-        res.status(500).json({ error: 'Verification error.' });
+        console.error('Verification error details:', err);
+        res.status(500).json({ error: 'Server verification error. Try again later.' });
     }
-});
-
-app.post('/api/auth/logout', (req, res) => {
-    req.session.destroy(() => {
-        res.clearCookie('connect.sid');
-        res.json({ success: true });
-    });
 });
 
 // --- POSTS, LIKES, & VIEWS ---
@@ -149,14 +159,21 @@ app.post('/api/posts', async (req, res) => {
             author: user.username,
             author_pfp: user.pfp,
             author_color: user.color,
-            author_badges: user.badges,
+            author_badges: user.badges || [],
             thumbnail: `https://uploads.scratch.mit.edu/projects/thumbnails/${projectId}.png`,
             likes: [],
             views: []
         };
-        await supabase.from('posts').insert([newPost]);
+
+        const { error } = await supabase.from('posts').insert([newPost]);
+        if (error) {
+            console.error('Supabase Insert Error:', error);
+            return res.status(500).json({ error: 'Database error: ' + error.message });
+        }
+
         res.json({ success: true, post: newPost });
     } catch (err) {
+        console.error('Post creation error:', err);
         res.status(500).json({ error: 'Server error' });
     }
 });
@@ -170,9 +187,9 @@ app.post('/api/posts/:id/like', async (req, res) => {
 
     let likes = post.likes || [];
     if (likes.includes(req.session.username)) {
-        likes = likes.filter(u => u !== req.session.username); // Unlike
+        likes = likes.filter(u => u !== req.session.username);
     } else {
-        likes.push(req.session.username); // Like
+        likes.push(req.session.username);
     }
 
     await supabase.from('posts').update({ likes }).eq('id', postId);
@@ -207,38 +224,34 @@ app.post('/api/posts/:id/comments', async (req, res) => {
 
     const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
     
-    const newComment = { post_id: req.params.id, author: user.username, author_pfp: user.pfp, text };
-    const { data } = await supabase.from('comments').insert([newComment]).select().single();
-    res.json({ success: true, comment: data });
-});
-
-// --- STORE / SHOP ---
-app.post('/api/store/buy', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    const { type, value, price } = req.body;
-    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
-    if (user.coins < price) return res.status(400).json({ error: 'Not enough coins.' });
-
-    let updates = { coins: user.coins - price };
-    if (type === 'color') updates.color = cleanInput(value);
-    if (type === 'badge') {
-        let badges = user.badges || [];
-        if (!badges.includes(value)) badges.push(cleanInput(value));
-        updates.badges = badges;
+    const newComment = { 
+        post_id: req.params.id, 
+        author: user.username, 
+        author_pfp: user.pfp, 
+        author_color: user.color,
+        text 
+    };
+    const { data, error } = await supabase.from('comments').insert([newComment]).select().single();
+    if (error) {
+        console.error('Comment Insert Error:', error);
+        return res.status(500).json({ error: 'Database error while commenting.' });
     }
-    await supabase.from('users').update(updates).eq('username', user.username);
-    res.json({ success: true, coins: updates.coins });
+    res.json({ success: true, comment: data });
 });
 
 // --- MODERATION ---
 app.delete('/api/moderation/posts/:id', async (req, res) => {
     if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
     
-    const { data: user } = await supabase.from('users').select('is_admin').eq('username', req.session.username).single();
-    if (!user || !user.is_admin) return res.status(403).json({ error: 'Admins only.' });
+    const { data: user } = await supabase.from('users').select('is_admin, username').eq('username', req.session.username).single();
+    const { data: post } = await supabase.from('posts').select('author').eq('id', req.params.id).single();
+
+    if (!user || (!user.is_admin && post?.author !== user.username)) {
+        return res.status(403).json({ error: 'Unauthorized action.' });
+    }
 
     await supabase.from('posts').delete().eq('id', req.params.id);
-    res.json({ success: true, message: 'Post deleted by moderator.' });
+    res.json({ success: true, message: 'Post deleted successfully.' });
 });
 
 app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
