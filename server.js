@@ -47,34 +47,68 @@ app.get('/api/auth/me', (req, res) => {
     res.json({ user: req.session.user || null });
 });
 
-// Single-Step Register Route with Detailed Error Handling
-app.post('/api/auth/register', async (req, res) => {
+// Register Step 1: Generate verification code and point user to project 1369788526
+app.post('/api/auth/register-request', async (req, res) => {
     try {
         const { username, password, referralCode } = req.body;
         if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
 
-        // Check if user already exists in Supabase
-        const { data: existing, error: checkError } = await supabase.from('users').select('*').eq('username', username).single();
-        if (checkError && checkError.code !== 'PGRST116') { // PGRST116 means row not found, which is expected for new users
-            console.error("Supabase check error:", checkError);
-            return res.status(400).json({ error: `Database check error: ${checkError.message}` });
-        }
+        const { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
         if (existing) return res.status(400).json({ error: 'Username already registered.' });
 
-        // Fetch Scratch profile to verify existence and get profile picture
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
         if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found.' });
         const scratchData = await scratchRes.json();
-        
         const pfp = scratchData.profile?.images?.['90x90'] || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png';
+
+        const verificationCode = 'BB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        let coins = 50; // Welcome bonus
+        req.session.pendingUser = { username, hashedPassword, pfp, referralCode, verificationCode };
+
+        res.json({ 
+            success: true, 
+            verificationCode, 
+            verificationProjectId: '1369788526',
+            verificationProjectUrl: 'https://scratch.mit.edu/projects/1369788526/'
+        });
+    } catch (err) {
+        console.error("Register request error:", err);
+        res.status(500).json({ error: 'Server error during registration request.' });
+    }
+});
+
+// Register Step 2: Check project comments for the verification code
+app.post('/api/auth/verify', async (req, res) => {
+    try {
+        const { username } = req.body;
+        const pending = req.session.pendingUser;
+
+        if (!pending || pending.username !== username) {
+            return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
+        }
+
+        // Fetch comments from project 1369788526
+        const projectId = '1369788526';
+        const commentsRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}/comments?limit=40`);
+        if (!commentsRes.ok) return res.status(400).json({ error: 'Could not check verification project comments.' });
+        const comments = await commentsRes.json();
+
+        // Check if the user posted a comment containing their verification code
+        const validComment = comments.some(c => 
+            c.author.username.toLowerCase() === username.toLowerCase() && 
+            c.content.includes(pending.verificationCode)
+        );
+
+        if (!validComment) {
+            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found in comments on project 1369788526 yet!` });
+        }
+
+        let coins = 50;
         let badges = ['Verified'];
 
-        // Handle Referral Code if provided
-        if (referralCode) {
-            const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', referralCode).single();
+        if (pending.referralCode) {
+            const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
             if (referrer) {
                 coins += 25;
                 await supabase.from('users').update({ coins: (referrer.coins || 0) + 25 }).eq('username', referrer.username);
@@ -84,9 +118,9 @@ app.post('/api/auth/register', async (req, res) => {
         const newReferralCode = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
         const newUser = {
-            username: username,
-            password: hashedPassword,
-            pfp: pfp,
+            username: pending.username,
+            password: pending.hashedPassword,
+            pfp: pending.pfp,
             coins: coins,
             badges: badges,
             referral_code: newReferralCode,
@@ -94,11 +128,8 @@ app.post('/api/auth/register', async (req, res) => {
             created_at: new Date()
         };
 
-        const { data, error: insertError } = await supabase.from('users').insert([newUser]).select();
-        if (insertError) {
-            console.error("Supabase insert error:", insertError);
-            return res.status(400).json({ error: `Database insert error: ${insertError.message}` });
-        }
+        const { data, error } = await supabase.from('users').insert([newUser]).select();
+        if (error) throw error;
 
         const userSessionData = {
             username: data[0].username,
@@ -110,10 +141,12 @@ app.post('/api/auth/register', async (req, res) => {
         };
 
         req.session.user = userSessionData;
+        delete req.session.pendingUser;
+
         res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error("Critical registration error:", err);
-        res.status(500).json({ error: `Server error: ${err.message}` });
+        console.error("Verification error:", err);
+        res.status(500).json({ error: 'Verification failed.' });
     }
 });
 
@@ -191,7 +224,6 @@ app.post('/api/posts', async (req, res) => {
         let projectTitle = `Project #${projectId}`;
         let projectThumbnail = `https://cdn2.scratch.mit.edu/get_image/project/${projectId}_480x360.png`;
 
-        // Try fetching metadata from Scratch API, but fallback gracefully if blocked or unavailable
         try {
             const scratchProjRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
             if (scratchProjRes.ok) {
