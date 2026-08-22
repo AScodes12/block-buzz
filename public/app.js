@@ -44,28 +44,16 @@ function switchTab(tabName) {
     window.scrollTo(0, 0);
 }
 
-// --- POSTS & FEED ---
-async function renderPostCard(post) {
+// --- POSTS & FEED (Optimized Async Comment Loader) ---
+function renderPostCard(post) {
     const postId = post.id;
     const views = Array.isArray(post.views) ? post.views.length : (Number(post.views) || 0);
     const likes = Array.isArray(post.likes) ? post.likes.length : (Number(post.likes) || 0);
 
-    let comments = [];
-    try {
-        const commentRes = await fetch('/api/posts/' + postId + '/comments');
-        if (commentRes.ok) comments = await commentRes.json();
-    } catch (err) { console.error('Failed to load comments'); }
-
     const eyeIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
     const heartIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
-    const chatIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>';
 
-    let commentsHtml = '';
-    for (let i = 0; i < comments.length; i++) {
-        let c = comments[i];
-        commentsHtml += '<div class="comment-item"><b>' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) + '</div>';
-    }
-    if (comments.length === 0) commentsHtml = '<p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">No comments yet.</p>';
+    setTimeout(() => { loadCommentsForPost(postId); }, 10);
 
     return '<div class="card" id="post-' + postId + '">' +
         '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">' +
@@ -82,16 +70,36 @@ async function renderPostCard(post) {
         '<div class="post-stats">' +
             '<span class="stat-item">' + eyeIcon + ' ' + views + ' views</span>' +
             '<button class="stat-btn" onclick="toggleLike(\'' + postId + '\')">' + heartIcon + ' <span id="like-count-' + postId + '">' + likes + '</span> Likes</button>' +
-            '<span class="stat-item">' + chatIcon + ' ' + comments.length + ' Comments</span>' +
         '</div>' +
         '<div class="comments-section">' +
-            '<div id="comments-list-' + postId + '">' + commentsHtml + '</div>' +
+            '<div id="comments-list-' + postId + '"><p style="font-size:13px; color:var(--text-secondary);">Loading comments...</p></div>' +
             '<div class="comment-input-row">' +
                 '<input type="text" id="comment-input-' + postId + '" placeholder="Add a comment..." style="padding: 6px 12px; font-size: 13px;">' +
                 '<button class="btn" style="padding: 6px 16px; font-size: 13px;" onclick="addComment(\'' + postId + '\')">Post</button>' +
             '</div>' +
         '</div>' +
     '</div>';
+}
+
+async function loadCommentsForPost(postId) {
+    const listContainer = document.getElementById('comments-list-' + postId);
+    if (!listContainer) return;
+    try {
+        const res = await fetch('/api/posts/' + postId + '/comments');
+        const comments = res.ok ? await res.json() : [];
+        if (comments.length === 0) {
+            listContainer.innerHTML = '<p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">No comments yet.</p>';
+            return;
+        }
+        let html = '';
+        for (let i = 0; i < comments.length; i++) {
+            let c = comments[i];
+            html += '<div class="comment-item"><b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(c.author) + '\')">' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) + '</div>';
+        }
+        listContainer.innerHTML = html;
+    } catch (err) {
+        listContainer.innerHTML = '<p style="font-size:13px; color:var(--text-secondary);">Failed to load comments.</p>';
+    }
 }
 
 async function loadFeed() {
@@ -106,7 +114,7 @@ async function loadFeed() {
         }
         let html = '';
         for (let i = 0; i < posts.length; i++) {
-            html += await renderPostCard(posts[i]);
+            html += renderPostCard(posts[i]);
         }
         feed.innerHTML = html;
     } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading posts.</p></div>'; }
@@ -153,7 +161,10 @@ async function addComment(postId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: input.value })
         });
-        if (res.ok) { input.value = ''; loadFeed(); }
+        if (res.ok) { 
+            input.value = ''; 
+            loadCommentsForPost(postId); 
+        }
     } catch (err) { console.error('Error commenting'); }
 }
 
@@ -252,7 +263,7 @@ async function submitContest() {
     } catch (err) { showMsg(msg, 'Error publishing contest.', 'error'); }
 }
 
-// --- STUDIOS & STUDIO DETAIL PAGE ---
+// --- STUDIOS & STUDIO DETAIL PAGE (Button Links) ---
 async function loadStudios() {
     const feed = document.getElementById('studios-feed');
     try {
@@ -265,9 +276,10 @@ async function loadStudios() {
         } else {
             for (let i = 0; i < studios.length; i++) {
                 let s = studios[i];
-                html += '<div class="card" style="cursor:pointer;" onclick="viewStudioDetails(\'' + (s.id || '') + '\', \'' + escapeHTML(s.title) + '\', \'' + escapeHTML(s.description) + '\')">' +
-                    '<h3 style="font-size: 16px; color:var(--accent-color);">' + escapeHTML(s.title) + '</h3>' +
-                    '<p style="font-size: 14px; color:var(--text-secondary); margin-top:4px;">' + escapeHTML(s.description) + '</p>' +
+                html += '<div class="card">' +
+                    '<h3 style="font-size: 16px; color:var(--text-primary); margin-bottom:4px;">' + escapeHTML(s.title) + '</h3>' +
+                    '<p style="font-size: 14px; color:var(--text-secondary); margin-bottom:12px;">' + escapeHTML(s.description) + '</p>' +
+                    '<button class="btn-outline" onclick="viewStudioDetails(\'' + (s.id || '') + '\', \'' + escapeHTML(s.title) + '\', \'' + escapeHTML(s.description) + '\')">View Studio</button>' +
                 '</div>';
             }
         }
@@ -310,7 +322,7 @@ async function loadNotifications() {
     section.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No notifications.</p></div>';
 }
 
-// --- PROFILES & AUTH ---
+// --- PROFILES & AUTHENTICATION MODALS ---
 async function viewUserProfile(username) {
     switchTab('user-profile');
     const container = document.getElementById('user-profile-content');
@@ -318,7 +330,8 @@ async function viewUserProfile(username) {
     try {
         const res = await fetch('/api/users/' + username);
         const user = res.ok ? await res.json() : { username: username };
-        container.innerHTML = '<div class="card" style="display:flex; align-items:center; gap:16px;">' +
+        container.innerHTML = '<button class="btn-outline" onclick="switchTab(\'home\')" style="margin-bottom: 12px;">← Back</button>' +
+            '<div class="card" style="display:flex; align-items:center; gap:16px;">' +
             '<div class="avatar-wrapper" style="width:64px; height:64px;"><img src="' + (user.pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png') + '"></div>' +
             '<div><h2 style="font-size: 20px;">' + escapeHTML(user.username) + '</h2><p style="color:var(--text-secondary); font-size: 13px;">Scratcher</p></div>' +
         '</div>';
@@ -327,7 +340,7 @@ async function viewUserProfile(username) {
 
 async function loadAccountProfile() {
     if (!currentUser) {
-        document.getElementById('account-profile-content').innerHTML = '<div class="card" style="text-align: center;"><h3 style="margin-bottom:8px;">Sign in required</h3><button class="btn" onclick="openAuthModal()">Sign in</button></div>';
+        document.getElementById('account-profile-content').innerHTML = '<div class="card" style="text-align: center;"><h3 style="margin-bottom:8px;">Sign in required</h3><button class="btn" onclick="openAuthModal(\'login\')">Sign in</button></div>';
         return;
     }
     viewUserProfile(currentUser.username);
@@ -348,29 +361,89 @@ function renderAuthUI() {
     if (currentUser) {
         container.innerHTML = '<div class="avatar-wrapper" style="width:32px; height:32px; cursor:pointer;" onclick="switchTab(\'account\')"><img src="' + (currentUser.pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png') + '"></div><button class="btn-outline" style="padding: 6px 16px; font-size: 13px;" onclick="logout()">Sign out</button>';
     } else {
-        container.innerHTML = '<button class="btn" style="padding: 8px 16px;" onclick="openAuthModal()">Sign in</button>';
+        container.innerHTML = '<button class="btn" style="padding: 8px 16px;" onclick="openAuthModal(\'login\')">Sign in</button>';
     }
 }
 
-function openAuthModal() { document.getElementById('auth-modal').style.display = 'flex'; }
+function openAuthModal(mode = 'login') {
+    const overlay = document.getElementById('auth-modal');
+    const body = document.getElementById('auth-modal-body');
+    overlay.style.display = 'flex';
+
+    if (mode === 'login') {
+        body.innerHTML = '<h3 style="margin-bottom: 20px; font-size: 18px;">Sign in to BlockBuzz</h3>' +
+            '<div class="input-group">' +
+                '<input type="text" id="auth-username" placeholder="Username">' +
+                '<input type="password" id="auth-password" placeholder="Password">' +
+                '<button class="btn" onclick="submitAuthLogin()" style="width: 100%; margin-top: 8px;">Sign In</button>' +
+                '<div class="auth-switch">Need an account? <span onclick="openAuthModal(\'signup\')">Sign up</span></div>' +
+                '<div class="auth-switch" style="margin-top: 4px;"><span onclick="openAuthModal(\'reset\')">Forgot password?</span></div>' +
+            '</div>';
+    } else if (mode === 'signup') {
+        body.innerHTML = '<h3 style="margin-bottom: 20px; font-size: 18px;">Create an Account</h3>' +
+            '<div class="input-group">' +
+                '<input type="text" id="auth-username" placeholder="Choose Username">' +
+                '<input type="password" id="auth-password" placeholder="Choose Password">' +
+                '<button class="btn" onclick="submitAuthSignup()" style="width: 100%; margin-top: 8px;">Sign Up</button>' +
+                '<div class="auth-switch">Already have an account? <span onclick="openAuthModal(\'login\')">Sign in</span></div>' +
+            '</div>';
+    } else if (mode === 'reset') {
+        body.innerHTML = '<h3 style="margin-bottom: 20px; font-size: 18px;">Reset Password</h3>' +
+            '<div class="input-group">' +
+                '<input type="text" id="auth-username" placeholder="Enter Username">' +
+                '<input type="password" id="auth-password" placeholder="New Password">' +
+                '<button class="btn" onclick="submitAuthReset()" style="width: 100%; margin-top: 8px;">Update Password</button>' +
+                '<div class="auth-switch"><span onclick="openAuthModal(\'login\')">Back to Sign in</span></div>' +
+            '</div>';
+    }
+}
+
 function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
 
-async function submitLogin() {
-    const usernameInput = document.getElementById('login-username').value;
-    const passwordInput = document.getElementById('login-password').value;
-    try {
-        const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: usernameInput, password: passwordInput })
-        });
-        if (res.ok) {
-            const data = await res.json();
-            currentUser = data.user;
-            renderAuthUI();
-            closeAuthModal();
-        }
-    } catch (err) { console.error('Login error'); }
+async function submitAuthLogin() {
+    const username = document.getElementById('auth-username').value;
+    const password = document.getElementById('auth-password').value;
+    const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    if (res.ok) {
+        const data = await res.json();
+        currentUser = data.user;
+        renderAuthUI();
+        closeAuthModal();
+    }
+}
+
+async function submitAuthSignup() {
+    const username = document.getElementById('auth-username').value;
+    const password = document.getElementById('auth-password').value;
+    const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    if (res.ok) {
+        const data = await res.json();
+        currentUser = data.user;
+        renderAuthUI();
+        closeAuthModal();
+    }
+}
+
+async function submitAuthReset() {
+    const username = document.getElementById('auth-username').value;
+    const password = document.getElementById('auth-password').value;
+    const res = await fetch('/api/auth/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+    });
+    if (res.ok) {
+        alert('Password updated successfully!');
+        openAuthModal('login');
+    }
 }
 
 async function logout() {
