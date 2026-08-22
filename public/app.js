@@ -73,7 +73,7 @@ function renderProfile() {
                     
                     <div class="input-group">
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
-                        <input type="password" id="signup-password" placeholder="Create Password" class="input-group input">
+                        <input type="password" id="signup-password" placeholder="Create Password" class="form-input">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
                         <button onclick="requestVerification()" class="btn">Next: Verify Profile</button>
                         <div id="account-msg-1" class="inline-msg"></div>
@@ -86,7 +86,7 @@ function renderProfile() {
                     <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Log in using your verified username and password.</p>
                     <div class="input-group">
                         <input type="text" id="login-username" placeholder="Scratch Username">
-                        <input type="password" id="login-password" placeholder="Password">
+                        <input type="password" id="login-password" placeholder="Enter Password" class="form-input">
                         <button onclick="loginUser()" class="btn">Log In</button>
                         <div id="account-msg-3" class="inline-msg"></div>
                     </div>
