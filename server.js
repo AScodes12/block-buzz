@@ -47,14 +47,18 @@ app.get('/api/auth/me', (req, res) => {
     res.json({ user: req.session.user || null });
 });
 
-// Single-Step Register Route (Reliable, saves directly to Supabase)
+// Single-Step Register Route with Detailed Error Handling
 app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, referralCode } = req.body;
         if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
 
         // Check if user already exists in Supabase
-        const { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
+        const { data: existing, error: checkError } = await supabase.from('users').select('*').eq('username', username).single();
+        if (checkError && checkError.code !== 'PGRST116') { // PGRST116 means row not found, which is expected for new users
+            console.error("Supabase check error:", checkError);
+            return res.status(400).json({ error: `Database check error: ${checkError.message}` });
+        }
         if (existing) return res.status(400).json({ error: 'Username already registered.' });
 
         // Fetch Scratch profile to verify existence and get profile picture
@@ -73,7 +77,6 @@ app.post('/api/auth/register', async (req, res) => {
             const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', referralCode).single();
             if (referrer) {
                 coins += 25;
-                // Reward the referrer
                 await supabase.from('users').update({ coins: (referrer.coins || 0) + 25 }).eq('username', referrer.username);
             }
         }
@@ -91,8 +94,11 @@ app.post('/api/auth/register', async (req, res) => {
             created_at: new Date()
         };
 
-        const { data, error } = await supabase.from('users').insert([newUser]).select();
-        if (error) throw error;
+        const { data, error: insertError } = await supabase.from('users').insert([newUser]).select();
+        if (insertError) {
+            console.error("Supabase insert error:", insertError);
+            return res.status(400).json({ error: `Database insert error: ${insertError.message}` });
+        }
 
         const userSessionData = {
             username: data[0].username,
@@ -106,8 +112,8 @@ app.post('/api/auth/register', async (req, res) => {
         req.session.user = userSessionData;
         res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error("Registration error:", err);
-        res.status(500).json({ error: 'Registration failed.' });
+        console.error("Critical registration error:", err);
+        res.status(500).json({ error: `Server error: ${err.message}` });
     }
 });
 
@@ -149,7 +155,6 @@ app.post('/api/auth/logout', (req, res) => {
 
 // --- POSTS ROUTES ---
 
-// Get all posts (Persisted from Supabase with safe fallback)
 app.get('/api/posts', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -168,7 +173,6 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// Create Post (Fetches actual title & thumbnail from Scratch API)
 app.post('/api/posts', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
 
@@ -216,7 +220,6 @@ app.post('/api/posts', async (req, res) => {
     }
 });
 
-// Like / Unlike Post
 app.post('/api/posts/:id/like', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
     try {
@@ -240,7 +243,6 @@ app.post('/api/posts/:id/like', async (req, res) => {
     }
 });
 
-// Track Unique View
 app.post('/api/posts/:id/view', async (req, res) => {
     if (!req.session.user) return res.sendStatus(401);
     try {
