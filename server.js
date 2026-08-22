@@ -1,324 +1,239 @@
 const express = require('express');
 const session = require('express-session');
-const cors = require('cors');
-const rateLimit = require('express-rate-limit');
-const helmet = require('helmet');
-const sanitizeHtml = require('sanitize-html');
 const path = require('path');
-const crypto = require('crypto');
-const { createClient } = require('@supabase/supabase-js');
-require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 3000;
 
-app.set('trust proxy', 1);
+// --- IN-MEMORY STORAGE ---
+const users = new Map(); // username -> user object
+const pendingVerifications = new Map(); // username -> { verificationCode, timestamp }
+const posts = [];
+const contests = [];
+const studios = [];
 
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-);
-
-app.use(helmet({ contentSecurityPolicy: false }));
-app.use(express.json({ limit: '10kb' }));
-
+// --- MIDDLEWARE ---
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'super-secret-scratch-key',
+    secret: 'scratch-community-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { httpOnly: true, secure: false, sameSite: 'lax', maxAge: 86400000 }
+    cookie: { secure: false } // Set to true if using HTTPS in production
 }));
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 });
+// Serve static files from the public directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-const pendingVerifications = {};
-
-function cleanInput(str) {
-    if (typeof str !== 'string') return '';
-    return sanitizeHtml(str.trim(), { allowedTags: [], allowedAttributes: {} });
+// Helper to generate random referral code
+function generateReferralCode() {
+    return Math.random().toString(36.substring(2, 8)).toUpperCase();
 }
 
-function extractScratchId(input) {
-    const clean = cleanInput(input);
-    const match = clean.match(/\d+/);
-    return match ? match[0] : null;
-}
+// ================= AUTH & VERIFICATION ROUTES =================
 
-// --- AUTHENTICATION & REFERRALS ---
-app.get('/api/auth/me', async (req, res) => {
-    if (req.session && req.session.username) {
-        const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
-        return res.json({ user: user || null });
-    }
-    res.json({ user: null });
-});
-
-app.post('/api/auth/register-request', authLimiter, (req, res) => {
-    const username = cleanInput(req.body.username);
-    const referralCode = cleanInput(req.body.referralCode);
-    if (!username || username.length < 3) return res.status(400).json({ error: 'Invalid username.' });
-
-    const verificationCode = `BlockBuzz-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
-    pendingVerifications[username.toLowerCase()] = { code: verificationCode, referralCode, expiresAt: Date.now() + 15 * 60 * 1000 };
-    res.json({ verificationCode });
-});
-
-app.post('/api/auth/verify', authLimiter, async (req, res) => {
-    const username = cleanInput(req.body.username);
-    if (!username) return res.status(400).json({ error: 'Username is required.' });
-
-    const key = username.toLowerCase();
-    const pending = pendingVerifications[key];
-
-    if (!pending || pending.expiresAt < Date.now()) {
-        return res.status(400).json({ error: 'Session expired. Please request a new code.' });
+// 1. Request a verification code
+app.post('/api/auth/register-request', (req, res) => {
+    const { username, referralCode } = req.body;
+    if (!username) {
+        return res.status(400).json({ error: 'Scratch username is required.' });
     }
 
+    const cleanUsername = username.trim();
+    
+    // Generate a unique 6-character code
+    const verificationCode = 'SCRATCH-' + Math.floor(100000 + Math.random() * 900000);
+    
+    pendingVerifications.set(cleanUsername, {
+        verificationCode,
+        referralCode: referralCode ? referralCode.trim() : null,
+        timestamp: Date.now()
+    });
+
+    return res.json({ success: true, verificationCode });
+});
+
+// 2. Confirm verification by checking Scratch profile bio/status
+app.post('/api/auth/verify', async (req, res) => {
     try {
-        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${encodeURIComponent(username)}`);
+        const { username } = req.body;
+        if (!username) {
+            return res.status(400).json({ error: 'Username is required for verification.' });
+        }
+
+        const cleanUsername = username.trim();
+        const pending = pendingVerifications.get(cleanUsername);
         
+        if (!pending) {
+            return res.status(400).json({ error: 'No pending verification found. Please request a code first.' });
+        }
+
+        // Fetch public data from Scratch API
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${cleanUsername}`);
         if (!scratchRes.ok) {
-            return res.status(404).json({ error: 'Scratch profile not found.' });
+            return res.status(400).json({ error: 'Could not find that user on Scratch. Check your spelling.' });
         }
 
         const scratchData = await scratchRes.json();
-        
-        if (!scratchData.profile) {
-            return res.status(400).json({ error: 'Could not read Scratch profile data.' });
-        }
+        const bio = scratchData.profile && scratchData.profile.bio ? scratchData.profile.bio : '';
+        const status = scratchData.profile && scratchData.profile.status ? scratchData.profile.status : '';
+        const expectedCode = pending.verificationCode;
 
-        const bio = scratchData.profile.bio || '';
-        const status = scratchData.profile.status || '';
-        const bioText = (bio + ' ' + status).toUpperCase();
-
-        if (!bioText.includes(pending.code.toUpperCase())) {
-            return res.status(400).json({ error: 'Code not found in your Scratch bio or status yet.' });
-        }
-
-        let { data: existingUser } = await supabase.from('users').select('*').eq('username', scratchData.username).single();
-
-        if (!existingUser) {
-            let coins = 0; 
-            if (pending.referralCode) {
-                const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
-                if (referrer) {
-                    await supabase.from('users').update({ coins: referrer.coins + 100 }).eq('username', referrer.username);
-                    coins += 100;
-                }
-            }
-
+        // Check if code exists in bio or status fields
+        if (bio.includes(expectedCode) || status.includes(expectedCode)) {
+            // Create user profile
             const newUser = {
-                username: scratchData.username,
+                username: cleanUsername,
                 pfp: scratchData.profile.images ? scratchData.profile.images['90x90'] : '',
-                coins: coins,
-                referral_code: `REF-${crypto.randomBytes(2).toString('hex').toUpperCase()}`,
-                color: '#0f172a',
-                badges: [],
-                is_admin: false
+                coins: 50, // Starting bonus coins
+                referral_code: generateReferralCode(),
+                badges: ['Verified'],
+                is_admin: users.size === 0 // Make the very first registered user an admin automatically
             };
-            await supabase.from('users').insert([newUser]);
-            existingUser = newUser;
-        }
 
-        delete pendingVerifications[key];
-        req.session.username = scratchData.username;
-        res.json({ success: true, user: existingUser });
+            users.set(cleanUsername, newUser);
+            pendingVerifications.delete(cleanUsername);
+
+            // Save session
+            req.session.user = newUser;
+            return res.json({ success: true, user: newUser });
+        } else {
+            return res.status(400).json({ 
+                error: `Verification code "${expectedCode}" not found in your Scratch bio yet. Please make sure you saved it and wait up to 30 seconds for Scratch to update.` 
+            });
+        }
     } catch (err) {
-        console.error('Verification error details:', err);
-        res.status(500).json({ error: 'Server verification error. Try again later.' });
+        console.error('Verification error:', err);
+        return res.status(500).json({ error: 'Server error communicating with Scratch API.' });
     }
 });
 
-// --- POSTS, LIKES, & VIEWS ---
-app.get('/api/posts', async (req, res) => {
-    const { data: posts } = await supabase.from('posts').select('*').order('id', { ascending: false });
-    res.json(posts || []);
+// 3. Check current session
+app.get('/api/auth/me', (req, res) => {
+    if (req.session && req.session.user) {
+        // Return latest user state from memory map
+        const currentUser = users.get(req.session.user.username) || req.session.user;
+        return res.json({ user: currentUser });
+    }
+    return res.json({ user: null });
+});
+
+// ================= POSTS ROUTES =================
+app.get('/api/posts', (req, res) => {
+    res.json(posts);
 });
 
 app.post('/api/posts', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({ error: 'Unauthorized. Please login.' });
+    }
 
-    const projectId = extractScratchId(req.body.scratchInput);
-    const caption = cleanInput(req.body.caption);
-    if (!projectId) return res.status(400).json({ error: 'Invalid Project.' });
+    const { scratchInput, caption } = req.body;
+    if (!scratchInput) {
+        return res.status(400).json({ error: 'Scratch project input is required.' });
+    }
+
+    // Extract project ID if URL was provided
+    let projectId = scratchInput.trim();
+    const match = projectId.match(/\/projects\/(\d+)/);
+    if (match) {
+        projectId = match[1];
+    }
 
     try {
-        const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
-        const projectRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
-        const projectData = projectRes.ok ? await projectRes.json() : { title: `Scratch Project #${projectId}` };
-
-        const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
+        // Fetch project info from Scratch API to get title and thumbnail
+        const projRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`);
+        if (!projRes.ok) {
+            return res.status(400).json({ error: 'Could not fetch Scratch project. Make sure it is shared.' });
+        }
+        const projData = await projRes.json();
 
         const newPost = {
-            id: Date.now(),
-            project_id: projectId,
-            title: projectData.title,
-            caption,
-            author: user.username,
-            author_pfp: user.pfp,
-            author_color: user.color,
-            author_badges: user.badges || [],
-            thumbnail: `https://uploads.scratch.mit.edu/projects/thumbnails/${projectId}.png`,
+            id: Date.now().toString(),
+            scratchId: projectId,
+            title: projData.title || 'Untitled Project',
+            thumbnail: projData.image || '',
+            caption: caption ? caption.trim() : '',
+            author: req.session.user.username,
+            author_pfp: req.session.user.pfp,
+            author_color: req.session.user.color || '#000000',
             likes: [],
-            views: []
+            views: [],
+            comments: [],
+            createdAt: new Date()
         };
 
-        const { error } = await supabase.from('posts').insert([newPost]);
-        if (error) {
-            console.error('Supabase Insert Error:', error);
-            return res.status(500).json({ error: 'Database error: ' + error.message });
-        }
-
+        posts.unshift(newPost);
         res.json({ success: true, post: newPost });
     } catch (err) {
         console.error('Post creation error:', err);
-        res.status(500).json({ error: 'Server error' });
+        res.status(500).json({ error: 'Failed to process Scratch project.' });
     }
 });
 
-app.post('/api/posts/:id/like', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    const postId = req.params.id;
-    
-    const { data: post } = await supabase.from('posts').select('likes').eq('id', postId).single();
-    if (!post) return res.status(404).json({ error: 'Post not found' });
+// ================= STUDIOS & CONTESTS ROUTES =================
+app.get('/api/studios', (req, res) => {
+    res.json(studios);
+});
 
-    let likes = post.likes || [];
-    if (likes.includes(req.session.username)) {
-        likes = likes.filter(u => u !== req.session.username);
-    } else {
-        likes.push(req.session.username);
+app.post('/api/studios', (req, res) => {
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({ error: 'Unauthorized. Please login.' });
     }
 
-    await supabase.from('posts').update({ likes }).eq('id', postId);
-    res.json({ success: true, likes });
-});
-
-app.post('/api/posts/:id/view', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    const postId = req.params.id;
-    
-    const { data: post } = await supabase.from('posts').select('views').eq('id', postId).single();
-    if (!post) return res.status(404).json({ error: 'Post not found' });
-
-    let views = post.views || [];
-    if (!views.includes(req.session.username)) {
-        views.push(req.session.username);
-        await supabase.from('posts').update({ views }).eq('id', postId);
+    const { title, description, scratchLink } = req.body;
+    if (!title || !scratchLink) {
+        return res.status(400).json({ error: 'Title and Scratch link are required.' });
     }
-    res.json({ success: true, views });
-});
-
-// --- COMMENTS ---
-app.get('/api/posts/:id/comments', async (req, res) => {
-    const { data: comments } = await supabase.from('comments').select('*').eq('post_id', req.params.id).order('created_at', { ascending: true });
-    res.json(comments || []);
-});
-
-app.post('/api/posts/:id/comments', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    const text = cleanInput(req.body.text);
-    if (!text) return res.status(400).json({ error: 'Comment cannot be empty.' });
-
-    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
-    
-    const newComment = { 
-        post_id: req.params.id, 
-        author: user.username, 
-        author_pfp: user.pfp, 
-        author_color: user.color,
-        text 
-    };
-    const { data, error } = await supabase.from('comments').insert([newComment]).select().single();
-    if (error) {
-        console.error('Comment Insert Error:', error);
-        return res.status(500).json({ error: 'Database error while commenting.' });
-    }
-    res.json({ success: true, comment: data });
-});
-
-// --- CONTESTS ---
-app.get('/api/contests', async (req, res) => {
-    const { data: contests } = await supabase.from('contests').select('*').order('id', { ascending: false });
-    res.json(contests || []);
-});
-
-app.post('/api/contests', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-
-    const title = cleanInput(req.body.title);
-    const description = cleanInput(req.body.description);
-    const prize = cleanInput(req.body.prize);
-    const scratchLink = cleanInput(req.body.scratchLink);
-
-    if (!title || !scratchLink) return res.status(400).json({ error: 'Title and link are required.' });
-
-    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
-
-    const newContest = {
-        id: Date.now(),
-        title,
-        description,
-        prize,
-        scratch_link: scratchLink,
-        author: user.username,
-        author_pfp: user.pfp
-    };
-
-    const { error } = await supabase.from('contests').insert([newContest]);
-    if (error) return res.status(500).json({ error: 'Failed to create contest.' });
-
-    res.json({ success: true, contest: newContest });
-});
-
-// --- STUDIOS ---
-app.get('/api/studios', async (req, res) => {
-    const { data: studios } = await supabase.from('studios').select('*').order('id', { ascending: false });
-    res.json(studios || []);
-});
-
-app.post('/api/studios', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-
-    const title = cleanInput(req.body.title);
-    const description = cleanInput(req.body.description);
-    const scratchLink = cleanInput(req.body.scratchLink);
-
-    if (!title || !scratchLink) return res.status(400).json({ error: 'Title and link are required.' });
-
-    const { data: user } = await supabase.from('users').select('*').eq('username', req.session.username).single();
 
     const newStudio = {
-        id: Date.now(),
-        title,
-        description,
-        scratch_link: scratchLink,
-        author: user.username,
-        author_pfp: user.pfp
+        id: Date.now().toString(),
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        scratch_link: scratchLink.trim(),
+        author: req.session.user.username,
+        author_pfp: req.session.user.pfp,
+        createdAt: new Date()
     };
 
-    const { error } = await supabase.from('studios').insert([newStudio]);
-    if (error) return res.status(500).json({ error: 'Failed to create studio.' });
-
+    studios.unshift(newStudio);
     res.json({ success: true, studio: newStudio });
 });
 
-// --- MODERATION ---
-app.delete('/api/moderation/posts/:id', async (req, res) => {
-    if (!req.session.username) return res.status(401).json({ error: 'Unauthorized.' });
-    
-    const { data: user } = await supabase.from('users').select('is_admin, username').eq('username', req.session.username).single();
-    const { data: post } = await supabase.from('posts').select('author').eq('id', req.params.id).single();
-
-    if (!user || (!user.is_admin && post?.author !== user.username)) {
-        return res.status(403).json({ error: 'Unauthorized action.' });
-    }
-
-    await supabase.from('posts').delete().eq('id', req.params.id);
-    res.json({ success: true, message: 'Post deleted successfully.' });
+app.get('/api/contests', (req, res) => {
+    res.json(contests);
 });
 
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-app.listen(PORT, () => console.log(`Server running securely on port ${PORT}`));
+app.post('/api/contests', (req, res) => {
+    if (!req.session || !req.session.user) {
+        return res.status(401).json({ error: 'Unauthorized. Please login.' });
+    }
+
+    const { title, description, prize, scratchLink } = req.body;
+    if (!title || !scratchLink) {
+        return res.status(400).json({ error: 'Title and Scratch link are required.' });
+    }
+
+    const newContest = {
+        id: Date.now().toString(),
+        title: title.trim(),
+        description: description ? description.trim() : '',
+        prize: prize ? prize.trim() : '',
+        scratch_link: scratchLink.trim(),
+        author: req.session.user.username,
+        author_pfp: req.session.user.pfp,
+        createdAt: new Date()
+    };
+
+    contests.unshift(newContest);
+    res.json({ success: true, contest: newContest });
+});
+
+// Fallback to index.html for single-page application routing
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.listen(PORT, () => {
+    console.log(`Server is running smoothly on port ${PORT}`);
+});
