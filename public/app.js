@@ -73,7 +73,7 @@ function renderProfile() {
                     
                     <div class="input-group">
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
-                        <input type="password" id="signup-password" placeholder="Create Password">
+                        <input type="password" id="signup-password" placeholder="Create Password" class="input-group input">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
                         <button onclick="requestVerification()" class="btn">Next: Verify Profile</button>
                         <div id="account-msg-1" class="inline-msg"></div>
