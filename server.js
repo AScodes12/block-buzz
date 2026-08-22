@@ -47,8 +47,8 @@ app.get('/api/auth/me', (req, res) => {
     res.json({ user: req.session.user || null });
 });
 
-// Register Step 1: Request verification code
-app.post('/api/auth/register-request', async (req, res) => {
+// Single-Step Register Route (Reliable, saves directly to Supabase)
+app.post('/api/auth/register', async (req, res) => {
     try {
         const { username, password, referralCode } = req.body;
         if (!username || !password) return res.status(400).json({ error: 'Username and password required.' });
@@ -57,53 +57,23 @@ app.post('/api/auth/register-request', async (req, res) => {
         const { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
         if (existing) return res.status(400).json({ error: 'Username already registered.' });
 
-        // Fetch Scratch profile to verify existence and get pfp
+        // Fetch Scratch profile to verify existence and get profile picture
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
         if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found.' });
         const scratchData = await scratchRes.json();
+        
         const pfp = scratchData.profile?.images?.['90x90'] || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png';
-
-        const verificationCode = 'BB-' + Math.random().toString(36).substring(2, 8).toUpperCase();
         const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Store pending data temporarily in session
-        req.session.pendingUser = { username, hashedPassword, pfp, referralCode, verificationCode };
-
-        res.json({ success: true, verificationCode });
-    } catch (err) {
-        console.error("Register request error:", err);
-        res.status(500).json({ error: 'Server error during registration request.' });
-    }
-});
-
-// Register Step 2: Confirm verification code from Scratch bio
-app.post('/api/auth/verify', async (req, res) => {
-    try {
-        const { username } = req.body;
-        const pending = req.session.pendingUser;
-
-        if (!pending || pending.username !== username) {
-            return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
-        }
-
-        // Fetch Scratch user profile bio/about me
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
-        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
-        const scratchData = await scratchRes.json();
-        const bio = (scratchData.profile?.biography || '') + ' ' + (scratchData.profile?.status || '');
-
-        if (!bio.includes(pending.verificationCode)) {
-            return res.status(400).json({ error: 'Verification code not found in your Scratch bio yet!' });
-        }
 
         let coins = 50; // Welcome bonus
         let badges = ['Verified'];
 
         // Handle Referral Code if provided
-        if (pending.referralCode) {
-            const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', pending.referralCode).single();
+        if (referralCode) {
+            const { data: referrer } = await supabase.from('users').select('*').eq('referral_code', referralCode).single();
             if (referrer) {
                 coins += 25;
+                // Reward the referrer
                 await supabase.from('users').update({ coins: (referrer.coins || 0) + 25 }).eq('username', referrer.username);
             }
         }
@@ -111,9 +81,9 @@ app.post('/api/auth/verify', async (req, res) => {
         const newReferralCode = 'REF-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
         const newUser = {
-            username: pending.username,
-            password: pending.hashedPassword,
-            pfp: pending.pfp,
+            username: username,
+            password: hashedPassword,
+            pfp: pfp,
             coins: coins,
             badges: badges,
             referral_code: newReferralCode,
@@ -134,16 +104,14 @@ app.post('/api/auth/verify', async (req, res) => {
         };
 
         req.session.user = userSessionData;
-        delete req.session.pendingUser;
-
         res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error("Verification error:", err);
-        res.status(500).json({ error: 'Verification failed.' });
+        console.error("Registration error:", err);
+        res.status(500).json({ error: 'Registration failed.' });
     }
 });
 
-// Login
+// Login Route
 app.post('/api/auth/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -172,7 +140,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-// Logout
+// Logout Route
 app.post('/api/auth/logout', (req, res) => {
     req.session.destroy();
     res.json({ success: true });
@@ -181,7 +149,7 @@ app.post('/api/auth/logout', (req, res) => {
 
 // --- POSTS ROUTES ---
 
-// Get all posts (Safely handles errors and returns empty array instead of 500 crash)
+// Get all posts (Persisted from Supabase with safe fallback)
 app.get('/api/posts', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -200,7 +168,7 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// Create Post (Fetches title & thumbnail from Scratch API)
+// Create Post (Fetches actual title & thumbnail from Scratch API)
 app.post('/api/posts', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
 
