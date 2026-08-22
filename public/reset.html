@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockBuzz - Reset Password</title>
+    <title>BlockBuzz - Login</title>
     <style>
         :root {
             --bg-color: #f1f5f9; --card-bg: #ffffff; --border-color: #e2e8f0;
@@ -33,89 +33,151 @@
         .footer-links { text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary); }
         .footer-links a { color: var(--accent-color); text-decoration: none; font-weight: 600; cursor: pointer; }
         .footer-links a:hover { text-decoration: underline; }
+        
+        .form-container { display: none; }
+        .form-container.active { display: block; }
     </style>
 </head>
 <body>
 
     <div class="auth-card">
         <div class="logo">BlockBuzz</div>
-        
-        <h3 style="margin-bottom: 6px; text-align: center;">Reset Password</h3>
-        <p style="color: var(--text-secondary); font-size: 13px; text-align: center; margin-bottom: 20px;">Verify via your Scratch profile</p>
-        
-        <!-- Step 1: Request Reset Code -->
-        <div class="input-group" id="reset-step-1">
-            <input type="text" id="reset-username" placeholder="Scratch Username">
-            <button onclick="requestPasswordReset()" class="btn">Get Reset Code</button>
+
+        <!-- LOGIN FORM -->
+        <div id="login-form" class="form-container active">
+            <h3 style="margin-bottom: 6px; text-align: center;">Welcome Back</h3>
+            <p style="color: var(--text-secondary); font-size: 13px; text-align: center; margin-bottom: 20px;">Log in to your Scratch community account</p>
+            
+            <div class="input-group">
+                <input type="text" id="login-username" placeholder="Scratch Username">
+                <input type="password" id="login-password" placeholder="Password">
+            </div>
+            <button onclick="handleLogin()" class="btn">Log In</button>
+            <div id="login-msg" class="inline-msg"></div>
+
+            <div class="footer-links">
+                <!-- Direct link to your reset.html page -->
+                <p>Forgot password? <a href="/reset.html">Reset it</a></p>
+                <p style="margin-top: 6px;">Don't have an account? <a onclick="switchForm('register')">Register</a></p>
+            </div>
         </div>
 
-        <!-- Step 2: Verify Code on Profile & Set New Password -->
-        <div id="reset-step-2" style="display: none;" class="input-group">
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4;">
-                Add this verification code to your Scratch profile bio or Wiwo:
-            </p>
-            <div id="reset-code-box" style="background: #f1f5f9; padding: 10px; text-align: center; font-weight: bold; font-size: 16px; border-radius: 8px; margin-bottom: 8px; color: var(--accent-color);"></div>
-            <input type="password" id="reset-new-password" placeholder="New Password (min 6 chars)">
-            <button onclick="submitPasswordReset()" class="btn">Update Password</button>
+        <!-- REGISTER FORM -->
+        <div id="register-form" class="form-container">
+            <h3 style="margin-bottom: 6px; text-align: center;">Create Account</h3>
+            <p style="color: var(--text-secondary); font-size: 13px; text-align: center; margin-bottom: 20px;">Join with your Scratch username</p>
+            
+            <div class="input-group" id="reg-step-1">
+                <input type="text" id="reg-username" placeholder="Scratch Username">
+                <input type="password" id="reg-password" placeholder="Create Password (min 6 chars)">
+                <input type="text" id="reg-referral" placeholder="Referral Code (Optional)">
+                <button onclick="requestRegistration()" class="btn">Next: Verify Profile</button>
+            </div>
+
+            <div id="reg-step-2" style="display: none;">
+                <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.5;">
+                    Please add this verification code to your Scratch Profile <b>About Me</b> or <b>Wiwo</b>:
+                </p>
+                <div id="verification-code-box" style="background: #f1f5f9; padding: 10px; text-align: center; font-weight: bold; font-size: 16px; border-radius: 8px; margin-bottom: 12px; color: var(--accent-color);"></div>
+                <button onclick="verifyRegistration()" class="btn">I've Added It, Verify Me!</button>
+            </div>
+
+            <div id="reg-msg" class="inline-msg"></div>
+
+            <div class="footer-links">
+                <p style="margin-top: 10px;">Already have an account? <a onclick="switchForm('login')">Log In</a></p>
+            </div>
         </div>
 
-        <div id="reset-msg" class="inline-msg"></div>
-
-        <div class="footer-links">
-            <p style="margin-top: 15px;"><a href="/login.html">Back to Log In</a></p>
-        </div>
     </div>
 
     <script>
-        let resetUsername = "";
+        let registeredUsername = "";
 
-        function showMsg(text, isError = true) {
-            const msg = document.getElementById('reset-msg');
+        function switchForm(formName) {
+            document.querySelectorAll('.form-container').forEach(el => el.classList.remove('active'));
+            document.getElementById(`${formName}-form`).classList.add('active');
+            clearMessages();
+        }
+
+        function clearMessages() {
+            document.querySelectorAll('.inline-msg').forEach(el => {
+                el.style.display = 'none';
+                el.textContent = '';
+                el.className = 'inline-msg';
+            });
+        }
+
+        function showMsg(elementId, text, isError = true) {
+            const msg = document.getElementById(elementId);
             msg.textContent = text;
             msg.className = `inline-msg ${isError ? 'error' : 'success'}`;
             msg.style.display = 'block';
         }
 
-        async function requestPasswordReset() {
-            const username = document.getElementById('reset-username').value.trim();
-            if (!username) return showMsg('Please enter your username.');
+        // --- LOGIN LOGIC ---
+        async function handleLogin() {
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+            
+            if (!username || !password) return showMsg('login-msg', 'Please fill in all fields.');
 
             try {
-                const res = await fetch('/api/auth/reset-request', {
+                const res = await fetch('/api/auth/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username })
+                    body: JSON.stringify({ username, password })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
 
-                resetUsername = username;
-                document.getElementById('reset-code-box').textContent = data.verificationCode;
-                document.getElementById('reset-step-1').style.display = 'none';
-                document.getElementById('reset-step-2').style.display = 'block';
-                showMsg('Code generated! Add it to your Scratch profile bio, then enter a new password.', false);
+                window.location.href = '/index.html';
             } catch (err) {
-                showMsg(err.message);
+                showMsg('login-msg', err.message);
             }
         }
 
-        async function submitPasswordReset() {
-            const newPassword = document.getElementById('reset-new-password').value;
-            if (!newPassword || newPassword.length < 6) return showMsg('Password must be at least 6 characters.');
+        // --- REGISTRATION LOGIC ---
+        async function requestRegistration() {
+            const username = document.getElementById('reg-username').value.trim();
+            const password = document.getElementById('reg-password').value;
+            const referralCode = document.getElementById('reg-referral').value.trim();
+
+            if (!username || !password) return showMsg('reg-msg', 'Username and password required.');
+            if (password.length < 6) return showMsg('reg-msg', 'Password must be at least 6 characters.');
 
             try {
-                const res = await fetch('/api/auth/reset-password', {
+                const res = await fetch('/api/auth/register-request', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: resetUsername, newPassword })
+                    body: JSON.stringify({ username, password, referralCode })
                 });
                 const data = await res.json();
                 if (!res.ok) throw new Error(data.error);
 
-                alert('Password reset successfully! Redirecting to login.');
-                window.location.href = '/login.html';
+                registeredUsername = username;
+                document.getElementById('verification-code-box').textContent = data.verificationCode;
+                document.getElementById('reg-step-1').style.display = 'none';
+                document.getElementById('reg-step-2').style.display = 'block';
+                showMsg('reg-msg', 'Code generated! Add it to your Scratch profile.', false);
             } catch (err) {
-                showMsg(err.message);
+                showMsg('reg-msg', err.message);
+            }
+        }
+
+        async function verifyRegistration() {
+            try {
+                const res = await fetch('/api/auth/verify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: registeredUsername })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error);
+
+                window.location.href = '/index.html';
+            } catch (err) {
+                showMsg('reg-msg', err.message);
             }
         }
     </script>
