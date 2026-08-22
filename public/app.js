@@ -52,8 +52,6 @@ function renderPostCard(post) {
     const eyeIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
     const heartIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
 
-    setTimeout(() => { loadCommentsForPost(postId); }, 10);
-
     return '<div class="card" id="post-' + postId + '">' +
         '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">' +
             '<div class="avatar-wrapper" style="cursor:pointer;" onclick="viewUserProfile(\'' + escapeHTML(post.author) + '\')">' +
@@ -116,6 +114,10 @@ async function loadFeed() {
             html += renderPostCard(posts[i]);
         }
         feed.innerHTML = html;
+        // Explicitly load comments for each rendered post
+        for (let i = 0; i < posts.length; i++) {
+            loadCommentsForPost(posts[i].id);
+        }
     } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading posts.</p></div>'; }
 }
 
@@ -190,27 +192,47 @@ function switchDiscussionCategory(category) {
 
 async function loadDiscussions(category) {
     const feed = document.getElementById('discussions-feed');
+    if (!feed) return;
     try {
         const res = await fetch('/api/discussions?category=' + category);
         const filtered = res.ok ? await res.json() : [];
         if (filtered.length === 0) {
-            feed.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No discussions found.</p></div>';
+            feed.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No discussions found in this category.</p></div>';
             return;
         }
         let html = '';
         for (let i = 0; i < filtered.length; i++) {
             let item = filtered[i];
-            html += '<div class="card">' +
+            let upvotes = Array.isArray(item.upvotes) ? item.upvotes.length : 0;
+            const thumbUpIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>';
+
+            html += '<div class="card" id="discussion-' + item.id + '">' +
                 '<div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">' +
                     '<div class="avatar-wrapper" style="width:28px; height:28px; cursor:pointer;" onclick="viewUserProfile(\'' + escapeHTML(item.author) + '\')"><img src="' + (item.author_pfp || '') + '"></div>' +
                     '<span class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(item.author) + '\')">' + escapeHTML(item.author) + '</span>' +
                 '</div>' +
                 '<h3 style="font-size:16px; margin:4px 0;">' + escapeHTML(item.title) + '</h3>' +
-                '<p style="font-size:14px; color:var(--text-secondary);">' + escapeHTML(item.content) + '</p>' +
+                '<p style="font-size:14px; color:var(--text-secondary); margin-bottom:12px;">' + escapeHTML(item.content) + '</p>' +
+                '<div class="post-stats">' +
+                    '<button class="stat-btn" onclick="toggleDiscussionUpvote(\'' + item.id + '\')">' + thumbUpIcon + ' <span id="upvote-count-' + item.id + '">' + upvotes + '</span> Upvotes</button>' +
+                '</div>' +
             '</div>';
         }
         feed.innerHTML = html;
     } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading discussions.</p></div>'; }
+}
+
+async function toggleDiscussionUpvote(discussionId) {
+    try {
+        const res = await fetch('/api/discussions/' + discussionId + '/upvote', { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            const countSpan = document.getElementById('upvote-count-' + discussionId);
+            if (countSpan) countSpan.textContent = data.upvotes.length;
+        } else if (res.status === 401) {
+            openAuthModal('login');
+        }
+    } catch (err) { console.error('Error upvoting discussion'); }
 }
 
 async function submitDiscussion() {
@@ -378,6 +400,11 @@ async function viewUserProfile(username) {
             '</div>' +
             '<h3 style="margin: 16px 0 8px 0; font-size: 16px;">User Projects</h3>' +
             (postsHtml || '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No projects posted yet.</p></div>');
+        
+        // Explicitly load comments for each user project
+        for(let i=0; i<posts.length; i++) {
+            loadCommentsForPost(posts[i].id);
+        }
     } catch (err) { container.innerHTML = '<div class="card"><p>Error loading profile.</p></div>'; }
 }
 
