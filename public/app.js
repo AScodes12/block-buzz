@@ -2,7 +2,7 @@ let currentUser = null;
 let currentDiscussionCategory = 'scratch';
 let currentVerificationCode = '';
 
-// --- AUTH MODAL & VERIFICATION ---
+// --- AUTH MODAL & CONTROLS ---
 function openAuthModal() {
     document.getElementById('auth-modal').style.display = 'flex';
 }
@@ -11,12 +11,59 @@ function closeAuthModal() {
     document.getElementById('auth-modal').style.display = 'none';
 }
 
-async function startVerification() {
-    const username = document.getElementById('verify-username').value.trim();
-    const msg = document.getElementById('verify-msg-1');
+function toggleAuthForm(type) {
+    const loginForm = document.getElementById('login-form-container');
+    const signupForm = document.getElementById('signup-form-container');
 
-    if (!username) {
-        showMsg(msg, 'Please enter your Scratch username.', 'error');
+    if (type === 'signup') {
+        loginForm.style.display = 'none';
+        signupForm.style.display = 'block';
+    } else {
+        loginForm.style.display = 'block';
+        signupForm.style.display = 'none';
+    }
+}
+
+// STANDARD LOGIN (NO VERIFICATION NEEDED AFTER INITIAL SIGNUP)
+async function submitLogin() {
+    const username = document.getElementById('login-username').value.trim();
+    const password = document.getElementById('login-password').value;
+    const msg = document.getElementById('login-msg');
+
+    if (!username || !password) {
+        showMsg(msg, 'Please enter username and password.', 'error');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            currentUser = data.user;
+            renderAuthUI();
+            closeAuthModal();
+            loadFeed();
+        } else {
+            showMsg(msg, data.error || 'Invalid credentials.', 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Server error logging in.', 'error');
+    }
+}
+
+// SIGNUP STEP 1: GENERATE CODE
+async function startSignupVerification() {
+    const username = document.getElementById('signup-username').value.trim();
+    const password = document.getElementById('signup-password').value;
+    const msg = document.getElementById('signup-msg-1');
+
+    if (!username || !password) {
+        showMsg(msg, 'Username and password are required.', 'error');
         return;
     }
 
@@ -31,25 +78,31 @@ async function startVerification() {
         if (data.success) {
             currentVerificationCode = data.code;
             document.getElementById('verification-code-display').textContent = data.code;
-            document.getElementById('verify-step-1').style.display = 'none';
-            document.getElementById('verify-step-2').style.display = 'block';
+            document.getElementById('signup-step-1').style.display = 'none';
+            document.getElementById('signup-step-2').style.display = 'block';
         } else {
-            showMsg(msg, data.error || 'Failed to generate code.', 'error');
+            showMsg(msg, data.error || 'Failed to generate verification code.', 'error');
         }
     } catch (err) {
-        showMsg(msg, 'Server error starting verification.', 'error');
+        showMsg(msg, 'Server error initiating verification.', 'error');
     }
 }
 
-async function checkVerification() {
-    const username = document.getElementById('verify-username').value.trim();
-    const msg = document.getElementById('verify-msg-2');
+// SIGNUP STEP 2: CONFIRM COMMENT & CREATE ACCOUNT
+async function confirmSignupVerification() {
+    const username = document.getElementById('signup-username').value.trim();
+    const password = document.getElementById('signup-password').value;
+    const msg = document.getElementById('signup-msg-2');
 
     try {
-        const res = await fetch('/api/auth/confirm-verify', {
+        const res = await fetch('/api/auth/confirm-signup', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, code: currentVerificationCode })
+            body: JSON.stringify({
+                username,
+                password,
+                code: currentVerificationCode
+            })
         });
         const data = await res.json();
 
@@ -57,20 +110,21 @@ async function checkVerification() {
             currentUser = data.user;
             renderAuthUI();
             closeAuthModal();
-            resetVerification();
+            resetSignupForm();
             loadFeed();
         } else {
-            showMsg(msg, data.error || 'Verification comment not found yet. Please check and try again!', 'error');
+            showMsg(msg, data.error || 'Verification comment not found yet. Try again in a moment!', 'error');
         }
     } catch (err) {
-        showMsg(msg, 'Server error confirming verification.', 'error');
+        showMsg(msg, 'Server error creating account.', 'error');
     }
 }
 
-function resetVerification() {
-    document.getElementById('verify-step-1').style.display = 'block';
-    document.getElementById('verify-step-2').style.display = 'none';
-    document.getElementById('verify-username').value = '';
+function resetSignupForm() {
+    document.getElementById('signup-step-1').style.display = 'block';
+    document.getElementById('signup-step-2').style.display = 'none';
+    document.getElementById('signup-username').value = '';
+    document.getElementById('signup-password').value = '';
     currentVerificationCode = '';
 }
 
@@ -93,7 +147,7 @@ function switchTab(tabName) {
     if (tabName === 'account') loadAccountProfile();
 }
 
-// --- AUTH CHECK ---
+// --- AUTH CHECK & UI ---
 async function checkAuth() {
     try {
         const res = await fetch('/api/auth/me');
@@ -121,7 +175,7 @@ function renderAuthUI() {
         `;
     } else {
         container.innerHTML = `
-            <button class="btn" onclick="openAuthModal()">Verify / Log In</button>
+            <button class="btn" onclick="openAuthModal()">Log In / Sign Up</button>
         `;
     }
 }
@@ -142,8 +196,8 @@ async function loadAccountProfile() {
         profileContainer.innerHTML = `
             <div class="card" style="text-align: center;">
                 <h3>You are not logged in</h3>
-                <p style="color:var(--text-secondary); margin: 12px 0;">Verify your Scratch account to view your profile and manage cosmetics.</p>
-                <button class="btn" onclick="openAuthModal()">Verify Scratch Account</button>
+                <p style="color:var(--text-secondary); margin: 12px 0;">Log in or create an account to view your profile.</p>
+                <button class="btn" onclick="openAuthModal()">Log In / Sign Up</button>
             </div>
         `;
         return;
@@ -163,10 +217,11 @@ async function loadAccountProfile() {
         </div>
 
         <div class="card">
-            <h3>Your Cosmetics & Badges</h3>
+            <h3>Your Cosmetics & Account Settings</h3>
             <p style="color:var(--text-secondary); font-size: 13px; margin-top: 4px;">Equipped Color: <strong style="color:${currentUser.color || 'inherit'}">${currentUser.color || 'Default'}</strong></p>
-            <div style="margin-top: 12px;">
+            <div style="margin-top: 16px; display:flex; gap:12px;">
                 <button class="btn-outline" onclick="switchTab('store')">Visit Store</button>
+                <a href="reset.html" class="btn-outline" style="text-decoration:none; text-align:center;">Reset Password</a>
             </div>
         </div>
     `;
