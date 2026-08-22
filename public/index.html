@@ -8,7 +8,7 @@
 </head>
 <body>
 
-    <!-- NAVIGATION BAR -->
+    <!-- NAVBAR -->
     <nav class="navbar">
         <div class="nav-brand">Block Buzz</div>
         <div class="nav-links">
@@ -17,41 +17,34 @@
             <button class="nav-btn" data-target="contests-page">Contests</button>
             <button class="nav-btn" data-target="studios-page">Studios</button>
         </div>
-        <div class="nav-user" id="user-nav-container">
-            <!-- User info or Login/Register buttons will be injected here -->
-        </div>
+        <div class="nav-user" id="user-nav-container"></div>
     </nav>
 
     <!-- MAIN CONTAINER -->
     <main class="container">
 
-        <!-- FEED PAGE (DEFAULT) -->
+        <!-- FEED PAGE -->
         <section id="feed-page" class="page-section active">
             <div class="section-header">
                 <h2>Project Feed</h2>
                 <button class="btn btn-primary" id="btn-open-create-post">Share Project</button>
             </div>
-            <div class="feed-grid" id="posts-container">
-                <!-- Posts dynamic insertion -->
-            </div>
+            <div class="feed-grid" id="posts-container"></div>
         </section>
 
         <!-- DISCUSSIONS PAGE -->
         <section id="discussions-page" class="page-section">
             <div class="section-header">
-                <h2>Community Discussions</h2>
+                <h2>Discussions</h2>
                 <button class="btn btn-primary" id="btn-open-create-discussion">Start Discussion</button>
             </div>
             
-            <!-- Category Tabs -->
-            <div class="tab-bar">
-                <button class="tab-btn active" data-category="scratch">Scratch Topics</button>
-                <button class="tab-btn" data-category="feedback">Block Buzz Feedback</button>
+            <div style="margin-bottom: 16px;">
+                <button class="btn tab-btn active" data-category="scratch">Scratch Topics</button>
+                <button class="btn tab-btn" data-category="feedback">Block Buzz Feedback</button>
             </div>
 
-            <div class="discussions-list" id="discussions-container">
-                <!-- Discussions dynamic insertion -->
-            </div>
+            <div id="discussions-container"></div>
         </section>
 
         <!-- CONTESTS PAGE -->
@@ -60,9 +53,7 @@
                 <h2>Contests</h2>
                 <button class="btn btn-primary" id="btn-open-create-contest">Host Contest</button>
             </div>
-            <div id="contests-container" class="cards-grid">
-                <!-- Contests dynamic insertion -->
-            </div>
+            <div id="contests-container" class="cards-grid"></div>
         </section>
 
         <!-- STUDIOS PAGE -->
@@ -71,20 +62,7 @@
                 <h2>Studios</h2>
                 <button class="btn btn-primary" id="btn-open-create-studio">Add Studio</button>
             </div>
-            <div id="studios-container" class="cards-grid">
-                <!-- Studios dynamic insertion -->
-            </div>
-        </section>
-
-        <!-- USER PROFILE PAGE -->
-        <section id="profile-page" class="page-section">
-            <div id="profile-details-container">
-                <!-- Profile information dynamic insertion -->
-            </div>
-            <h3 class="section-subtitle">User Projects</h3>
-            <div class="feed-grid" id="user-posts-container">
-                <!-- User posts insertion -->
-            </div>
+            <div id="studios-container" class="cards-grid"></div>
         </section>
 
     </main>
@@ -112,7 +90,7 @@
         </div>
     </div>
 
-    <!-- EXISTING MODALS (CREATE POST, CONTEST, STUDIO, AUTH, RESET PASSWORD, ETC.) -->
+    <!-- CREATE POST MODAL -->
     <div class="modal" id="modal-create-post">
         <div class="modal-content">
             <span class="modal-close">&times;</span>
