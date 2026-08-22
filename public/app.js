@@ -158,8 +158,8 @@ function renderPostCard(post) {
     const views = Array.isArray(post.views) ? post.views.length : 0;
     const likes = Array.isArray(post.likes) ? post.likes.length : 0;
 
-    // Check if the current user is the author or an admin
-    const isAuthor = currentUser && (currentUser.username === post.author || currentUser.is_admin);
+    // Strictly check if the current user is the exact author of the post
+    const isAuthor = currentUser && currentUser.username === post.author;
     
     // Styled prominently so it is immediately visible
     const deleteBtnHtml = isAuthor ? '<button class="btn" style="background-color: #d93025; color: white; margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer;" onclick="deletePost(\'' + postId + '\')">Delete Post</button>' : '';
