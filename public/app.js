@@ -421,6 +421,44 @@ async function fetchContests() {
     } catch (e) { console.error(e); }
 }
 
+async function submitContest() {
+    const titleEl = document.getElementById('contest-title');
+    const descEl = document.getElementById('contest-desc');
+    const prizeEl = document.getElementById('contest-prize');
+    const linkEl = document.getElementById('contest-link');
+    const msg = document.getElementById('contest-msg');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    const description = descEl ? descEl.value.trim() : '';
+    const prize = prizeEl ? prizeEl.value.trim() : '';
+    const scratchLink = linkEl ? linkEl.value.trim() : '';
+
+    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
+    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
+
+    try {
+        const res = await fetch('/api/contests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, prize, scratchLink })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            if (titleEl) titleEl.value = '';
+            if (descEl) descEl.value = '';
+            if (prizeEl) prizeEl.value = '';
+            if (linkEl) linkEl.value = '';
+            showMsg(msg, 'Contest posted successfully!', 'success');
+            fetchContests();
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Failed to post contest.', 'error');
+    }
+}
+
 async function fetchStudios() {
     const feed = document.getElementById('studios-feed');
     if (!feed) return;
@@ -439,6 +477,41 @@ async function fetchStudios() {
             </div>
         `).join('');
     } catch (e) { console.error(e); }
+}
+
+async function submitStudio() {
+    const titleEl = document.getElementById('studio-title');
+    const descEl = document.getElementById('studio-desc');
+    const linkEl = document.getElementById('studio-link');
+    const msg = document.getElementById('studio-msg');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    const description = descEl ? descEl.value.trim() : '';
+    const scratchLink = linkEl ? linkEl.value.trim() : '';
+
+    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
+    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
+
+    try {
+        const res = await fetch('/api/studios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description, scratchLink })
+        });
+        const data = await res.json();
+
+        if (res.ok) {
+            if (titleEl) titleEl.value = '';
+            if (descEl) descEl.value = '';
+            if (linkEl) linkEl.value = '';
+            showMsg(msg, 'Studio posted successfully!', 'success');
+            fetchStudios();
+        } else {
+            showMsg(msg, data.error, 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Failed to post studio.', 'error');
+    }
 }
 
 function renderStore() {
