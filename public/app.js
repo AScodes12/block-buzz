@@ -69,11 +69,11 @@ function renderProfile() {
                 <!-- SIGN UP FORM -->
                 <div id="auth-signup-form">
                     <h2>Scratch Sign Up</h2>
-                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Create your platform account using your Scratch credentials.</p>
+                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Create your platform account using your Scratch credentials. For security reasons please do not use your Scratch password.</p>
                     
                     <div class="input-group">
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
-                        <input type="password" id="signup-password" placeholder="Create Password - For security reasons do not use your Scratch password">
+                        <input type="password" id="signup-password" placeholder="Create Password - Do not use your Scratch password">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
                         <button onclick="requestVerification()" class="btn" style="width: 100%;">Next: Verify Profile</button>
                         <div id="account-msg-1" class="inline-msg"></div>
