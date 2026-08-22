@@ -365,14 +365,15 @@ async function fetchContests() {
 }
 
 async function submitContest() {
-    const title = document.getElementById('contest-title')?.value.trim();
-    const description = document.getElementById('contest-desc')?.value.trim();
-    const prize = document.getElementById('contest-prize')?.value.trim();
-    const scratchLink = (
-        document.getElementById('contest-link')?.value ||
-        document.getElementById('contest-scratch-link')?.value ||
-        document.getElementById('contest-url')?.value
-    ).trim();
+    const titleEl = document.getElementById('contest-title');
+    const descEl = document.getElementById('contest-desc');
+    const prizeEl = document.getElementById('contest-prize');
+    const linkEl = document.getElementById('contest-link') || document.getElementById('contest-scratch-link') || document.getElementById('contest-url');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    const description = descEl ? descEl.value.trim() : '';
+    const prize = prizeEl ? prizeEl.value.trim() : '';
+    const scratchLink = linkEl ? linkEl.value.trim() : '';
     const msg = document.getElementById('contest-msg');
 
     if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
@@ -387,10 +388,10 @@ async function submitContest() {
         const data = await res.json();
 
         if (res.ok) {
-            if(document.getElementById('contest-title')) document.getElementById('contest-title').value = '';
-            if(document.getElementById('contest-desc')) document.getElementById('contest-desc').value = '';
-            if(document.getElementById('contest-prize')) document.getElementById('contest-prize').value = '';
-            if(document.getElementById('contest-link')) document.getElementById('contest-link').value = '';
+            if (titleEl) titleEl.value = '';
+            if (descEl) descEl.value = '';
+            if (prizeEl) prizeEl.value = '';
+            if (linkEl) linkEl.value = '';
             showMsg(msg, 'Contest advertised successfully!', 'success');
             fetchContests();
         } else {
@@ -432,13 +433,13 @@ async function fetchStudios() {
 }
 
 async function submitStudio() {
-    const title = document.getElementById('studio-title')?.value.trim();
-    const description = document.getElementById('studio-desc')?.value.trim();
-    const scratchLink = (
-        document.getElementById('studio-link')?.value ||
-        document.getElementById('studio-scratch-link')?.value ||
-        document.getElementById('studio-url')?.value
-    ).trim();
+    const titleEl = document.getElementById('studio-title');
+    const descEl = document.getElementById('studio-desc');
+    const linkEl = document.getElementById('studio-link') || document.getElementById('studio-scratch-link') || document.getElementById('studio-url');
+
+    const title = titleEl ? titleEl.value.trim() : '';
+    const description = descEl ? descEl.value.trim() : '';
+    const scratchLink = linkEl ? linkEl.value.trim() : '';
     const msg = document.getElementById('studio-msg');
 
     if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
@@ -453,9 +454,9 @@ async function submitStudio() {
         const data = await res.json();
 
         if (res.ok) {
-            if(document.getElementById('studio-title')) document.getElementById('studio-title').value = '';
-            if(document.getElementById('studio-desc')) document.getElementById('studio-desc').value = '';
-            if(document.getElementById('studio-link')) document.getElementById('studio-link').value = '';
+            if (titleEl) titleEl.value = '';
+            if (descEl) descEl.value = '';
+            if (linkEl) linkEl.value = '';
             showMsg(msg, 'Studio advertised successfully!', 'success');
             fetchStudios();
         } else {
@@ -468,8 +469,10 @@ async function submitStudio() {
 
 // --- STORE PLACEHOLDER ---
 function renderStore() {
-    document.getElementById('store-colors').innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Colors loaded via store configurations.</p>`;
-    document.getElementById('store-badges').innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Badges loaded via store configurations.</p>`;
+    const storeColors = document.getElementById('store-colors');
+    const storeBadges = document.getElementById('store-badges');
+    if (storeColors) storeColors.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Colors loaded via store configurations.</p>`;
+    if (storeBadges) storeBadges.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Badges loaded via store configurations.</p>`;
 }
 
 // --- UTILITIES ---
