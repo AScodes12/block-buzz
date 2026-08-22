@@ -134,7 +134,7 @@ app.post('/api/auth/verify', async (req, res) => {
             badges: badges,
             referral_code: newReferralCode,
             is_admin: false,
-            created_at: new Date()
+            created_at: new Date().toISOString() // Includes exact date and time
         };
 
         const { data, error } = await supabase.from('users').insert([newUser]).select();
@@ -209,7 +209,7 @@ app.get('/api/users/:username', async (req, res) => {
             .from('posts')
             .select('*')
             .eq('author', username)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false, nullsFirst: false });
 
         res.json({ user, posts: posts || [] });
     } catch (err) {
@@ -223,7 +223,7 @@ app.get('/api/posts', async (req, res) => {
         const { data, error } = await supabase
             .from('posts')
             .select('*')
-            .order('created_at', { ascending: false }); // Newest posts first
+            .order('created_at', { ascending: false, nullsFirst: false });
         
         if (error) return res.json([]);
         res.json(data || []);
@@ -269,7 +269,7 @@ app.post('/api/posts', async (req, res) => {
             caption: caption || '',
             likes: [],
             views: [],
-            created_at: new Date()
+            created_at: new Date().toISOString() // Exact date and time string
         };
 
         const { data, error } = await supabase.from('posts').insert([newPost]).select();
@@ -331,7 +331,7 @@ app.get('/api/posts/:id/comments', async (req, res) => {
             .from('comments')
             .select('*')
             .eq('post_id', req.params.id)
-            .order('created_at', { ascending: true });
+            .order('created_at', { ascending: true, nullsFirst: false });
         if (error) return res.json([]);
         res.json(data || []);
     } catch (err) {
@@ -349,7 +349,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
             post_id: req.params.id,
             author: req.session.user.username,
             text: text,
-            created_at: new Date()
+            created_at: new Date().toISOString()
         };
 
         const { data, error } = await supabase.from('comments').insert([newComment]).select();
@@ -363,7 +363,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
 
 // --- CONTESTS & STUDIOS ROUTES ---
 app.get('/api/contests', async (req, res) => {
-    const { data } = await supabase.from('contests').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase.from('contests').select('*').order('created_at', { ascending: false, nullsFirst: false });
     res.json(data || []);
 });
 
@@ -371,14 +371,14 @@ app.post('/api/contests', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
     const { title, description, prize, scratchLink } = req.body;
     const { data, error } = await supabase.from('contests').insert([{
-        title, description, prize, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date()
+        title, description, prize, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date().toISOString()
     }]).select();
     if (error) return res.status(400).json({ error: error.message });
     res.json({ success: true, contest: data[0] });
 });
 
 app.get('/api/studios', async (req, res) => {
-    const { data } = await supabase.from('studios').select('*').order('created_at', { ascending: false });
+    const { data } = await supabase.from('studios').select('*').order('created_at', { ascending: false, nullsFirst: false });
     res.json(data || []);
 });
 
@@ -386,7 +386,7 @@ app.post('/api/studios', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
     const { title, description, scratchLink } = req.body;
     const { data, error } = await supabase.from('studios').insert([{
-        title, description, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date()
+        title, description, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date().toISOString()
     }]).select();
     if (error) return res.status(400).json({ error: error.message });
     res.json({ success: true, studio: data[0] });
