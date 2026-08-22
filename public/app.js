@@ -2,6 +2,32 @@
 let currentUser = null;
 let currentDiscussionCategory = 'scratch';
 
+// --- NEW: REPLY TO COMMENTS / POSTS FEATURE ---
+function toggleReplyBox(commentKey) {
+    const box = document.getElementById('reply-box-' + commentKey);
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+async function addReply(postId, commentId, inputId) {
+    const input = document.getElementById(inputId);
+    if (!input || !input.value.trim()) return;
+    try {
+        const res = await fetch('/api/posts/' + postId + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input.value, parentId: commentId })
+        });
+        if (res.ok) {
+            input.value = '';
+            loadCommentsForPost(postId);
+        } else if (res.status === 401) {
+            openAuthModal('login');
+        }
+    } catch (err) { console.error('Error sending reply'); }
+}
+
 // --- THEME MANAGEMENT ---
 function loadTheme() {
     const isLegacy = localStorage.getItem('blockbuzz_legacy_theme') === 'true';
@@ -94,7 +120,15 @@ async function loadCommentsForPost(postId) {
         let html = '';
         for (let i = 0; i < comments.length; i++) {
             let c = comments[i];
-            html += '<div class="comment-item"><b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(c.author) + '\')">' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) + '</div>';
+            let cId = c.id || i;
+            html += '<div class="comment-item" style="margin-bottom:6px;">' +
+                '<b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(c.author) + '\')">' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) +
+                ' <span style="font-size:11px; color:var(--text-secondary); cursor:pointer; margin-left:6px;" onclick="toggleReplyBox(\'' + postId + '-' + cId + '\')">Reply</span>' +
+                '<div id="reply-box-' + postId + '-' + cId + '" style="display:none; margin-top:4px; margin-left:12px;" class="comment-input-row">' +
+                    '<input type="text" id="reply-input-' + postId + '-' + cId + '" placeholder="Write a reply..." style="padding: 4px 8px; font-size: 12px;">' +
+                    '<button class="btn" style="padding: 4px 12px; font-size: 12px;" onclick="addReply(\'' + postId + '\', \'' + cId + '\', \'reply-input-' + postId + '-' + cId + '\')">Send</button>' +
+                '</div>' +
+            '</div>';
         }
         listContainer.innerHTML = html;
     } catch (err) {
@@ -435,7 +469,6 @@ async function loadAccountProfile() {
     '</div>';
 }
 
-// --- AUTHENTICATION ---
 async function checkAuth() {
     try {
         const res = await fetch('/api/auth/me');
@@ -591,7 +624,7 @@ async function logout() {
     switchTab('home');
 }
 
-// --- UTILITY FUNCTIONS ---
+// --- UTILS ---
 function showMsg(element, text, type) { 
     if (!element) return; 
     element.textContent = text; 
@@ -606,7 +639,6 @@ function escapeHTML(str) {
     }) : ''; 
 }
 
-// --- APP INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', function() { 
     loadTheme(); 
     checkAuth(); 
