@@ -3,120 +3,126 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BlockBuzz - Reset Password</title>
+    <title>Reset Password - BlockBuzz</title>
     <style>
         :root {
             --bg-color: #f1f5f9; --card-bg: #ffffff; --border-color: #e2e8f0;
             --text-primary: #0f172a; --text-secondary: #64748b;
-            --accent-color: #2563eb; --accent-hover: #1d4ed8;
-            --radius-md: 12px; --radius-lg: 16px;
-            --shadow-sm: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+            --accent-color: #2563eb; --radius-md: 12px; --radius-lg: 16px;
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        body { background-color: var(--bg-color); color: var(--text-primary); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        body { background: var(--bg-color); color: var(--text-primary); display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 16px; }
 
-        .auth-card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 30px; width: 100%; max-width: 400px; box-shadow: var(--shadow-sm); }
-        .logo { font-weight: 800; font-size: 1.5rem; color: var(--accent-color); text-align: center; margin-bottom: 20px; letter-spacing: -0.5px; }
+        .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 28px; width: 100%; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .input-group { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px; background: #f8fafc; outline: none; }
+        input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent-color); background: #fff; }
         
-        .input-group { display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px; }
-        input[type="text"], input[type="password"] { width: 100%; padding: 12px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-size: 14px; outline: none; background: #f8fafc; transition: border-color 0.2s, box-shadow 0.2s; }
-        input[type="text"]:focus, input[type="password"]:focus { border-color: var(--accent-color); background: #fff; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
-
-        .btn { width: 100%; background-color: var(--accent-color); color: #fff; border: none; padding: 12px; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; cursor: pointer; transition: background-color 0.2s; margin-top: 8px; }
-        .btn:hover { background-color: var(--accent-hover); }
-
-        .inline-msg { padding: 10px 14px; border-radius: 8px; font-size: 13px; margin-top: 12px; display: none; text-align: center; }
-        .inline-msg.error { background: #fee2e2; color: #991b1b; border: 1px solid #f87171; }
-        .inline-msg.success { background: #dcfce7; color: #166534; border: 1px solid #4ade80; }
-
-        .footer-links { text-align: center; margin-top: 20px; font-size: 13px; color: var(--text-secondary); }
-        .footer-links a { color: var(--accent-color); text-decoration: none; font-weight: 600; cursor: pointer; }
-        .footer-links a:hover { text-decoration: underline; }
+        .btn { background: var(--accent-color); color: white; border: none; padding: 12px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer; }
+        .btn-outline { background: transparent; color: var(--accent-color); border: 2px solid var(--accent-color); padding: 10px; border-radius: var(--radius-md); font-weight: 600; cursor: pointer; text-align: center; text-decoration: none; }
+        
+        .inline-msg { padding: 10px; border-radius: 8px; font-size: 13px; margin-top: 10px; display: none; }
+        .inline-msg.error { background: #fee2e2; color: #991b1b; }
+        .inline-msg.success { background: #dcfce7; color: #166534; }
     </style>
 </head>
 <body>
 
-    <div class="auth-card">
-        <div class="logo">BlockBuzz</div>
-        
-        <h3 style="margin-bottom: 6px; text-align: center;">Reset Password</h3>
-        <p style="color: var(--text-secondary); font-size: 13px; text-align: center; margin-bottom: 20px;">Verify via your Scratch profile</p>
-        
-        <!-- Step 1: Request Reset Code -->
-        <div class="input-group" id="reset-step-1">
-            <input type="text" id="reset-username" placeholder="Scratch Username">
-            <button onclick="requestPasswordReset()" class="btn">Get Reset Code</button>
+    <div class="card">
+        <h2>Reset Password</h2>
+        <p style="color:var(--text-secondary); font-size:13px; margin-top:4px;">Re-verify your Scratch account to choose a new password.</p>
+
+        <!-- Step 1: Request Code -->
+        <div id="reset-step-1">
+            <div class="input-group">
+                <input type="text" id="reset-username" placeholder="Scratch Username">
+                <input type="password" id="reset-new-password" placeholder="New Password">
+                <button class="btn" onclick="startResetVerification()">Get Verification Code</button>
+                <a href="index.html" class="btn-outline">Back to Home</a>
+                <div id="reset-msg-1" class="inline-msg"></div>
+            </div>
         </div>
 
-        <!-- Step 2: Verify Code on Profile & Set New Password -->
-        <div id="reset-step-2" style="display: none;" class="input-group">
-            <p style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4;">
-                Add this verification code to your Scratch profile bio or Wiwo:
-            </p>
-            <div id="reset-code-box" style="background: #f1f5f9; padding: 10px; text-align: center; font-weight: bold; font-size: 16px; border-radius: 8px; margin-bottom: 8px; color: var(--accent-color);"></div>
-            <input type="password" id="reset-new-password" placeholder="New Password (min 6 chars)">
-            <button onclick="submitPasswordReset()" class="btn">Update Password</button>
-        </div>
-
-        <div id="reset-msg" class="inline-msg"></div>
-
-        <div class="footer-links">
-            <p style="margin-top: 15px;"><a href="/index.html">Back to Log In</a></p>
+        <!-- Step 2: Confirm Comment -->
+        <div id="reset-step-2" style="display:none;">
+            <p style="color:var(--text-secondary); font-size:13px; margin-top:12px;">Comment this code on Scratch to authorize password reset:</p>
+            <div style="background:#f8fafc; border:1px solid var(--border-color); padding:12px; border-radius:8px; text-align:center; font-weight:bold; font-size:1.2rem; margin-top:8px;" id="reset-code-display">------</div>
+            <div class="input-group">
+                <button class="btn" onclick="confirmPasswordReset()">Confirm Comment & Change Password</button>
+                <button class="btn-outline" onclick="resetForm()">Back</button>
+                <div id="reset-msg-2" class="inline-msg"></div>
+            </div>
         </div>
     </div>
 
     <script>
-        let resetUsername = "";
+        let currentResetCode = '';
 
-        function showMsg(text, isError = true) {
-            const msg = document.getElementById('reset-msg');
-            msg.textContent = text;
-            msg.className = `inline-msg ${isError ? 'error' : 'success'}`;
-            msg.style.display = 'block';
-        }
-
-        async function requestPasswordReset() {
+        async function startResetVerification() {
             const username = document.getElementById('reset-username').value.trim();
-            if (!username) return showMsg('Please enter your username.');
+            const newPassword = document.getElementById('reset-new-password').value;
+            const msg = document.getElementById('reset-msg-1');
+
+            if (!username || !newPassword) {
+                showMsg(msg, 'Please enter your username and new password.', 'error');
+                return;
+            }
 
             try {
-                const res = await fetch('/api/auth/reset-request', {
+                const res = await fetch('/api/auth/start-verify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
 
-                resetUsername = username;
-                document.getElementById('reset-code-box').textContent = data.verificationCode;
-                document.getElementById('reset-step-1').style.display = 'none';
-                document.getElementById('reset-step-2').style.display = 'block';
-                showMsg('Code generated! Add it to your Scratch profile bio, then enter a new password.', false);
+                if (data.success) {
+                    currentResetCode = data.code;
+                    document.getElementById('reset-code-display').textContent = data.code;
+                    document.getElementById('reset-step-1').style.display = 'none';
+                    document.getElementById('reset-step-2').style.display = 'block';
+                } else {
+                    showMsg(msg, data.error || 'Failed to start reset.', 'error');
+                }
             } catch (err) {
-                showMsg(err.message);
+                showMsg(msg, 'Server error starting reset.', 'error');
             }
         }
 
-        async function submitPasswordReset() {
+        async function confirmPasswordReset() {
+            const username = document.getElementById('reset-username').value.trim();
             const newPassword = document.getElementById('reset-new-password').value;
-            if (!newPassword || newPassword.length < 6) return showMsg('Password must be at least 6 characters.');
+            const msg = document.getElementById('reset-msg-2');
 
             try {
-                const res = await fetch('/api/auth/reset-password', {
+                const res = await fetch('/api/auth/confirm-reset', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username: resetUsername, newPassword })
+                    body: JSON.stringify({ username, newPassword, code: currentResetCode })
                 });
                 const data = await res.json();
-                if (!res.ok) throw new Error(data.error);
 
-                alert('Password reset successfully! Redirecting to login.');
-                window.location.href = '/index.html';
+                if (data.success) {
+                    showMsg(msg, 'Password reset successful! Redirecting...', 'success');
+                    setTimeout(() => { window.location.href = 'index.html'; }, 2000);
+                } else {
+                    showMsg(msg, data.error || 'Comment not found yet. Try again in a moment!', 'error');
+                }
             } catch (err) {
-                showMsg(err.message);
+                showMsg(msg, 'Server error resetting password.', 'error');
             }
+        }
+
+        function resetForm() {
+            document.getElementById('reset-step-1').style.display = 'block';
+            document.getElementById('reset-step-2').style.display = 'none';
+        }
+
+        function showMsg(el, text, type) {
+            el.textContent = text;
+            el.className = `inline-msg ${type}`;
+            el.style.display = 'block';
         }
     </script>
 </body>
