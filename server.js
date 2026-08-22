@@ -43,6 +43,14 @@ const authLimiter = rateLimit({
 });
 app.use('/api/auth/', authLimiter);
 
+// --- SECURITY MIDDLEWARE ---
+function ensureAuthenticated(req, res, next) {
+    if (req.session && req.session.user) {
+        return next();
+    }
+    return res.status(401).json({ error: 'Unauthorized. Please log in first.' });
+}
+
 // --- AUTHENTICATION ROUTES ---
 
 // Check current session
@@ -307,9 +315,8 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-app.post('/api/posts', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
-
+// Protected Post Creation Route
+app.post('/api/posts', ensureAuthenticated, async (req, res) => {
     try {
         const { scratchInput, caption } = req.body;
         if (!scratchInput) return res.status(400).json({ error: 'Project link or ID required.' });
@@ -356,8 +363,7 @@ app.post('/api/posts', async (req, res) => {
     }
 });
 
-app.post('/api/posts/:id/like', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+app.post('/api/posts/:id/like', ensureAuthenticated, async (req, res) => {
     try {
         const postId = req.params.id;
         const username = req.session.user.username;
@@ -379,8 +385,7 @@ app.post('/api/posts/:id/like', async (req, res) => {
     }
 });
 
-app.post('/api/posts/:id/view', async (req, res) => {
-    if (!req.session.user) return res.sendStatus(401);
+app.post('/api/posts/:id/view', ensureAuthenticated, async (req, res) => {
     try {
         const postId = req.params.id;
         const username = req.session.user.username;
@@ -414,8 +419,7 @@ app.get('/api/posts/:id/comments', async (req, res) => {
     }
 });
 
-app.post('/api/posts/:id/comments', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+app.post('/api/posts/:id/comments', ensureAuthenticated, async (req, res) => {
     try {
         const { text } = req.body;
         if (!text) return res.status(400).json({ error: 'Comment cannot be empty.' });
@@ -442,8 +446,7 @@ app.get('/api/contests', async (req, res) => {
     res.json(data || []);
 });
 
-app.post('/api/contests', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+app.post('/api/contests', ensureAuthenticated, async (req, res) => {
     const { title, description, prize, scratchLink } = req.body;
     const { data, error } = await supabase.from('contests').insert([{
         title, description, prize, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date().toISOString()
@@ -457,8 +460,7 @@ app.get('/api/studios', async (req, res) => {
     res.json(data || []);
 });
 
-app.post('/api/studios', async (req, res) => {
-    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+app.post('/api/studios', ensureAuthenticated, async (req, res) => {
     const { title, description, scratchLink } = req.body;
     const { data, error } = await supabase.from('studios').insert([{
         title, description, scratch_link: scratchLink, author: req.session.user.username, created_at: new Date().toISOString()
