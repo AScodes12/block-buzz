@@ -223,7 +223,7 @@ app.get('/api/posts', async (req, res) => {
         const { data, error } = await supabase
             .from('posts')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false }); // Newest posts first
         
         if (error) return res.json([]);
         res.json(data || []);
