@@ -1,622 +1,344 @@
-let currentUser = null;
-let pendingUsername = '';
-
 document.addEventListener('DOMContentLoaded', () => {
-    checkSession();
-    fetchPosts();
-    fetchContests();
-    fetchStudios();
-    renderStore();
-});
+    let currentUser = null;
+    let activeDiscussionCategory = 'scratch';
 
-// --- SESSION CHECK ---
-async function checkSession() {
-    try {
-        const res = await fetch('/api/auth/me');
-        const data = await res.json();
-        currentUser = data.user;
-        updateAuthUI();
-    } catch (err) {
-        console.error('Session check failed', err);
-    }
-}
+    // --- NAVIGATION ROUTING ---
+    const navButtons = document.querySelectorAll('.nav-btn');
+    const pageSections = document.querySelectorAll('.page-section');
 
-// --- TAB SWITCHING ---
-function switchTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-    document.querySelectorAll('nav .nav-link').forEach(btn => btn.classList.remove('active'));
+    navButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.getAttribute('data-target');
+            
+            navButtons.forEach(b => b.classList.remove('active'));
+            pageSections.forEach(s => s.classList.remove('active'));
 
-    const targetSection = document.getElementById(`${tabId}-section`);
-    const targetNav = document.getElementById(`nav-${tabId}`);
+            btn.classList.add('active');
+            const targetEl = document.getElementById(target);
+            if (targetEl) targetEl.classList.add('active');
 
-    if (targetSection) targetSection.style.display = 'block';
-    if (targetNav) targetNav.classList.add('active');
-
-    if (tabId === 'account') renderProfile();
-}
-
-// --- AUTH UI UPDATES ---
-function updateAuthUI() {
-    const authContainer = document.getElementById('auth-container');
-    if (!authContainer) return;
-
-    if (currentUser) {
-        authContainer.innerHTML = `
-            <div style="display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px;">
-                <div class="avatar-wrapper"><img src="${currentUser.pfp || ''}" alt="PFP"></div>
-                <span>${currentUser.username}</span>
-                <span style="background: #fef3c7; color: #d97706; padding: 2px 8px; border-radius: 12px; font-size: 12px;">🪙 ${currentUser.coins}</span>
-            </div>
-        `;
-    } else {
-        authContainer.innerHTML = `<button onclick="switchTab('account')" class="btn" style="padding: 6px 14px; font-size: 13px;">Login / Sign Up</button>`;
-    }
-}
-
-// --- PROFILE & AUTH MODES ---
-function renderProfile() {
-    const container = document.getElementById('account-profile-content');
-    if (!container) return;
-
-    if (!currentUser) {
-        container.innerHTML = `
-            <div class="card" style="max-width: 400px; margin: 0 auto;">
-                <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-                    <button onclick="switchAuthMode('signup')" id="btn-mode-signup" class="btn" style="flex: 1;">Sign Up</button>
-                    <button onclick="switchAuthMode('login')" id="btn-mode-login" class="btn-outline" style="flex: 1;">Log In</button>
-                </div>
-
-                <!-- SIGN UP FORM -->
-                <div id="auth-signup-form">
-                    <h2>Scratch Sign Up</h2>
-                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Create your platform account using your Scratch credentials.</p>
-                    
-                    <div class="input-group">
-                        <input type="text" id="scratch-username" placeholder="Scratch Username">
-                        <input type="password" id="signup-password" placeholder="Create Password">
-                        <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
-                        <button onclick="requestVerification()" class="btn" style="width: 100%;">Next: Verify Profile</button>
-                        <div id="account-msg-1" class="inline-msg"></div>
-                    </div>
-                </div>
-
-                <!-- LOGIN FORM -->
-                <div id="auth-login-form" style="display: none;">
-                    <h2>Welcome Back</h2>
-                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Log in using your verified username and password.</p>
-                    <div class="input-group">
-                        <input type="text" id="login-username" placeholder="Scratch Username">
-                        <input type="password" id="login-password" placeholder="Password">
-                        <button onclick="loginUser()" class="btn" style="width: 100%;">Log In</button>
-                        <!-- Added Forgot Password link pointing to reset.html -->
-                        <div style="text-align: right; margin-top: 6px;">
-                            <a href="reset.html" style="font-size: 12px; color: var(--accent-color); text-decoration: none;">Forgot Password?</a>
-                        </div>
-                        <div id="account-msg-3" class="inline-msg"></div>
-                    </div>
-                </div>
-            </div>
-        `;
-    } else {
-        container.innerHTML = `
-            <div class="card" style="max-width: 400px; margin: 0 auto;">
-                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 20px;">
-                    <div class="avatar-wrapper" style="width: 60px; height: 60px;"><img src="${currentUser.pfp}" alt="PFP"></div>
-                    <div>
-                        <h2>${currentUser.username}</h2>
-                        <p style="color: var(--text-secondary); font-size: 13px;">Coins: 🪙 ${currentUser.coins}</p>
-                        <div style="display: flex; gap: 6px; margin-top: 6px;">
-                            ${(currentUser.badges || []).map(b => `<span style="background: #eff6ff; color: var(--accent-color); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">⭐ ${b}</span>`).join('')}
-                            ${currentUser.is_admin ? '<span style="background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">Admin</span>' : ''}
-                        </div>
-                    </div>
-                </div>
-                <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); margin-bottom: 16px;">
-                    <p style="font-size: 13px; color: var(--text-secondary);">Your Referral Code:</p>
-                    <strong style="font-size: 15px; color: var(--text-primary);">${currentUser.referral_code}</strong>
-                </div>
-                <button onclick="logout()" class="btn-outline" style="width: 100%; border-color: #ef4444; color: #ef4444;">Log Out</button>
-            </div>
-        `;
-    }
-}
-
-function switchAuthMode(mode) {
-    const signupForm = document.getElementById('auth-signup-form');
-    const loginForm = document.getElementById('auth-login-form');
-    const btnSignup = document.getElementById('btn-mode-signup');
-    const btnLogin = document.getElementById('btn-mode-login');
-
-    if (!signupForm || !loginForm) return;
-
-    if (mode === 'signup') {
-        signupForm.style.display = 'block';
-        loginForm.style.display = 'none';
-        btnSignup.className = 'btn';
-        btnLogin.className = 'btn-outline';
-    } else {
-        signupForm.style.display = 'none';
-        loginForm.style.display = 'block';
-        btnSignup.className = 'btn-outline';
-        btnLogin.className = 'btn';
-    }
-}
-
-// --- VERIFICATION WORKFLOW WITH 30s TIMER ---
-async function requestVerification() {
-    const usernameInput = document.getElementById('scratch-username');
-    const passwordInput = document.getElementById('signup-password');
-    const referralInput = document.getElementById('referral-code-input');
-    const msg = document.getElementById('account-msg-1');
-
-    const username = usernameInput ? usernameInput.value.trim() : '';
-    const password = passwordInput ? passwordInput.value : '';
-    const referralCode = referralInput ? referralInput.value.trim() : '';
-
-    if (!username || !password) {
-        return showMsg(msg, 'Username and password are required.', 'error');
-    }
-
-    try {
-        const res = await fetch('/api/auth/register-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password, referralCode })
+            if (target === 'feed-page') loadPosts();
+            if (target === 'discussions-page') loadDiscussions(activeDiscussionCategory);
+            if (target === 'contests-page') loadContests();
+            if (target === 'studios-page') loadStudios();
         });
-        const data = await res.json();
+    });
 
-        if (res.ok) {
-            pendingUsername = username;
-            const container = document.getElementById('auth-signup-form');
+    // --- INITIAL SESSION CHECK ---
+    async function checkAuth() {
+        try {
+            const res = await fetch('/api/auth/me');
+            const data = await res.json();
+            currentUser = data.user;
+            renderUserNav();
+        } catch (err) {
+            console.error('Auth check error:', err);
+        }
+    }
+
+    function renderUserNav() {
+        const container = document.getElementById('user-nav-container');
+        if (!container) return;
+
+        if (currentUser) {
             container.innerHTML = `
-                <h2>Verify Your Account</h2>
-                <p style="color:var(--text-secondary); margin-bottom: 12px; font-size: 13px;">
-                    Paste this code on the <strong>top line</strong> of your <strong>"What I'm working on"</strong> section on Scratch:
-                </p>
-                <div style="background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid var(--border-color); text-align: center; margin-bottom: 12px;">
-                    <strong style="font-size: 18px; color: var(--accent-color);">${data.verificationCode}</strong>
+                <div class="user-pill">
+                    <img src="${currentUser.pfp}" class="nav-pfp" alt="${currentUser.username}" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;">
+                    <span>${currentUser.username} (${currentUser.coins} coins)</span>
+                    <button class="btn btn-secondary btn-sm" id="btn-logout">Logout</button>
                 </div>
-                <a href="${data.profileUrl}" target="_blank" class="btn-outline" style="display: block; text-align: center; margin-bottom: 16px; text-decoration: none; padding: 8px;">Open My Scratch Profile</a>
-                <p id="timer-text" style="color:var(--text-secondary); margin-bottom: 12px; font-size: 12px; font-weight: bold;">Please wait <span id="countdown">30</span> seconds for Scratch to update, then verify.</p>
-                <button id="check-btn" onclick="confirmVerification()" class="btn" disabled style="opacity: 0.5; cursor: not-allowed; width: 100%;">Check Verification</button>
-                <div id="account-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
             `;
-
-            let timeLeft = 30;
-            const countdownEl = document.getElementById('countdown');
-            const checkBtn = document.getElementById('check-btn');
-            const timerText = document.getElementById('timer-text');
-
-            const timer = setInterval(() => {
-                timeLeft--;
-                if (countdownEl) countdownEl.textContent = timeLeft;
-                if (timeLeft <= 0) {
-                    clearInterval(timer);
-                    if (timerText) timerText.textContent = "You're ready! Click below to verify:";
-                    if (checkBtn) {
-                        checkBtn.disabled = false;
-                        checkBtn.style.opacity = '1';
-                        checkBtn.style.cursor = 'pointer';
-                    }
-                }
-            }, 1000);
-
+            document.getElementById('btn-logout').addEventListener('click', handleLogout);
         } else {
-            showMsg(msg, data.error, 'error');
+            container.innerHTML = `
+                <button class="btn btn-secondary" id="btn-open-login">Log In</button>
+                <button class="btn btn-primary" id="btn-open-register">Sign Up</button>
+            `;
         }
-    } catch (err) {
-        showMsg(msg, 'Registration request failed.', 'error');
-    }
-}
-
-async function confirmVerification() {
-    const msg = document.getElementById('account-msg-2');
-    try {
-        const res = await fetch('/api/auth/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: pendingUsername })
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-            currentUser = data.user;
-            updateAuthUI();
-            renderProfile();
-        } else {
-            showMsg(msg, data.error, 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Verification check failed. Try again.', 'error');
-    }
-}
-
-async function loginUser() {
-    const usernameInput = document.getElementById('login-username');
-    const passwordInput = document.getElementById('login-password');
-    const msg = document.getElementById('account-msg-3');
-
-    const username = usernameInput ? usernameInput.value.trim() : '';
-    const password = passwordInput ? passwordInput.value : '';
-
-    if (!username || !password) {
-        return showMsg(msg, 'Please enter username and password.', 'error');
     }
 
-    try {
-        const res = await fetch('/api/auth/login', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password })
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-            currentUser = data.user;
-            updateAuthUI();
-            renderProfile();
-        } else {
-            showMsg(msg, data.error, 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Login failed.', 'error');
+    async function handleLogout() {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        currentUser = null;
+        renderUserNav();
+        loadPosts();
     }
-}
 
-async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    currentUser = null;
-    updateAuthUI();
-    renderProfile();
-}
+    // --- POSTS FEED ---
+    async function loadPosts() {
+        const container = document.getElementById('posts-container');
+        if (!container) return;
 
-// --- VIEW OTHER USER PROFILE ---
-async function viewUserProfile(username) {
-    try {
-        const res = await fetch(`/api/users/${username}`);
-        const data = await res.json();
+        try {
+            const res = await fetch('/api/posts');
+            const posts = await res.json();
+            
+            if (!posts.length) {
+                container.innerHTML = '<p class="empty-state">No projects shared yet!</p>';
+                return;
+            }
 
-        if (!res.ok) {
-            return alert(data.error || 'Could not load profile.');
-        }
-
-        const profileUser = data.user;
-        const userPosts = data.posts;
-
-        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
-        document.querySelectorAll('nav .nav-link').forEach(btn => btn.classList.remove('active'));
-
-        let targetSection = document.getElementById('user-profile-section');
-        if (!targetSection) {
-            targetSection = document.createElement('div');
-            targetSection.id = 'user-profile-section';
-            targetSection.className = 'tab-content';
-            document.querySelector('main').appendChild(targetSection);
-        }
-        targetSection.style.display = 'block';
-
-        targetSection.innerHTML = `
-            <div class="card" style="max-width: 600px; margin: 0 auto 20px auto;">
-                <button onclick="switchTab('home')" class="btn-outline" style="margin-bottom: 16px; padding: 6px 12px; font-size: 12px;">← Back to Feed</button>
-                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
-                    <div class="avatar-wrapper" style="width: 60px; height: 60px;"><img src="${profileUser.pfp}" alt="PFP"></div>
-                    <div>
-                        <h2>${profileUser.username}</h2>
-                        <div style="display: flex; gap: 6px; margin-top: 6px;">
-                            ${(profileUser.badges || []).map(b => `<span style="background: #eff6ff; color: var(--accent-color); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">⭐ ${b}</span>`).join('')}
-                            ${profileUser.is_admin ? '<span style="background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">Admin</span>' : ''}
+            container.innerHTML = posts.map(post => {
+                const liked = currentUser && (post.likes || []).includes(currentUser.username);
+                return `
+                    <div class="post-card" data-id="${post.id}">
+                        <div class="post-header">
+                            <img src="${post.author_pfp}" class="author-pfp" alt="${post.author}" style="width:32px;height:32px;border-radius:50%;">
+                            <span class="author-name">${post.author}</span>
                         </div>
-                    </div>
-                </div>
-            </div>
-
-            <h3 style="margin-bottom: 12px; font-size: 16px;">Projects by ${profileUser.username}</h3>
-            <div>
-                ${userPosts.length === 0 ? '<div class="card" style="text-align: center; color: var(--text-secondary);">No projects posted yet.</div>' : userPosts.map(p => `
-                    <div class="card" style="margin-bottom: 16px;">
-                        <h4 style="font-size: 15px; margin-bottom: 4px;">${p.title}</h4>
-                        <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 8px;">${p.caption || ''}</p>
-                        <a href="${p.scratch_link}" target="_blank">
-                            <img src="${p.thumbnail}" class="project-thumb" alt="Thumbnail" style="width: 100%; border-radius: 8px;">
+                        <a href="${post.scratch_link}" target="_blank" class="post-thumb-link">
+                            <img src="${post.thumbnail}" class="post-thumb" alt="${post.title}" style="max-width:100%;border-radius:6px;">
+                            <div class="post-title" style="font-weight:bold;margin-top:6px;">${escapeHTML(post.title)}</div>
                         </a>
+                        <p class="post-caption">${escapeHTML(post.caption || '')}</p>
+                        <div class="post-actions">
+                            <button class="btn-like ${liked ? 'liked' : ''}" onclick="toggleLike(${post.id})">
+                                ❤️ ${(post.likes || []).length}
+                            </button>
+                            <span class="views-count">👁️ ${(post.views || []).length}</span>
+                        </div>
                     </div>
-                `).join('')}
-            </div>
-        `;
-    } catch (err) {
-        console.error('Failed to view profile', err);
-        alert('Failed to load user profile.');
-    }
-}
-
-// --- POSTS & FEED ---
-async function submitPost() {
-    const scratchInputEl = document.getElementById('scratch-input');
-    const captionEl = document.getElementById('post-caption');
-    const msg = document.getElementById('home-msg');
-
-    const scratchInput = scratchInputEl ? scratchInputEl.value.trim() : '';
-    const caption = captionEl ? captionEl.value.trim() : '';
-
-    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
-    if (!scratchInput) return showMsg(msg, 'Please enter a project URL or ID.', 'error');
-
-    try {
-        const res = await fetch('/api/posts', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ scratchInput, caption })
-        });
-        const data = await res.json();
-
-        if (res.ok) {
-            if (scratchInputEl) scratchInputEl.value = '';
-            if (captionEl) captionEl.value = '';
-            showMsg(msg, 'Project posted successfully!', 'success');
-            fetchPosts();
-        } else {
-            showMsg(msg, data.error, 'error');
+                `;
+            }).join('');
+        } catch (err) {
+            container.innerHTML = '<p class="error-state">Failed to load posts.</p>';
         }
-    } catch (err) {
-        showMsg(msg, 'Failed to post project.', 'error');
     }
-}
 
-async function fetchPosts() {
-    const feed = document.getElementById('feed');
-    if (!feed) return;
+    window.toggleLike = async function(id) {
+        if (!currentUser) {
+            alert('Please log in to like posts.');
+            return;
+        }
+        try {
+            const res = await fetch(`/api/posts/${id}/like`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) loadPosts();
+        } catch (err) {
+            console.error('Like failed:', err);
+        }
+    };
 
-    try {
-        const res = await fetch('/api/posts');
-        const posts = await res.json();
+    // --- DISCUSSIONS FEATURE ---
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    tabButtons.forEach(tab => {
+        tab.addEventListener('click', () => {
+            tabButtons.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            activeDiscussionCategory = tab.getAttribute('data-category');
+            loadDiscussions(activeDiscussionCategory);
+        });
+    });
 
-        if (!posts || posts.length === 0) {
-            feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No projects posted yet.</div>`;
+    async function loadDiscussions(category) {
+        const container = document.getElementById('discussions-container');
+        if (!container) return;
+
+        container.innerHTML = '<p class="loading-state">Loading discussions...</p>';
+
+        try {
+            const res = await fetch(`/api/discussions?category=${category}`);
+            const discussions = await res.json();
+
+            if (!discussions.length) {
+                container.innerHTML = `<p class="empty-state">No discussions in this category yet. Be the first to start one!</p>`;
+                return;
+            }
+
+            container.innerHTML = discussions.map(item => {
+                const upvoted = currentUser && (item.upvotes || []).includes(currentUser.username);
+                const dateStr = new Date(item.created_at).toLocaleDateString();
+
+                return `
+                    <div class="discussion-card" style="display:flex;gap:12px;padding:12px;border:1px solid #ccc;border-radius:6px;margin-bottom:12px;">
+                        <div class="upvote-box" style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:40px;">
+                            <button class="upvote-btn ${upvoted ? 'active' : ''}" onclick="toggleUpvote(${item.id})" style="cursor:pointer;background:none;border:none;font-size:16px;">
+                                ▲
+                            </button>
+                            <span class="upvote-count" style="font-weight:bold;">${(item.upvotes || []).length}</span>
+                        </div>
+                        <div class="discussion-main" style="flex:1;">
+                            <div class="discussion-meta" style="font-size:0.85em;color:#666;margin-bottom:4px;">
+                                <img src="${item.author_pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png'}" class="author-pfp-sm" style="width:20px;height:20px;border-radius:50%;vertical-align:middle;">
+                                <strong style="color:#333;">${escapeHTML(item.author)}</strong> • <span>${dateStr}</span>
+                            </div>
+                            <h3 class="discussion-title" style="margin:4px 0;">${escapeHTML(item.title)}</h3>
+                            <p class="discussion-content" style="margin:4px 0;white-space:pre-wrap;">${escapeHTML(item.content)}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        } catch (err) {
+            container.innerHTML = '<p class="error-state">Failed to load discussions.</p>';
+        }
+    }
+
+    window.toggleUpvote = async function(id) {
+        if (!currentUser) {
+            alert('Please log in to upvote discussions.');
             return;
         }
 
-        let htmlContent = '';
-        for (const p of posts) {
-            const isLiked = currentUser && p.likes && p.likes.includes(currentUser.username);
-            const viewCount = p.views ? p.views.length : 0;
-            const likeCount = p.likes ? p.likes.length : 0;
+        try {
+            const res = await fetch(`/api/discussions/${id}/upvote`, { method: 'POST' });
+            const data = await res.json();
+            if (data.success) {
+                loadDiscussions(activeDiscussionCategory);
+            } else {
+                alert(data.error || 'Failed to toggle upvote.');
+            }
+        } catch (err) {
+            alert('Server error processing upvote.');
+        }
+    };
 
-            let commentsHtml = '';
+    // --- CREATE DISCUSSION MODAL & FORM ---
+    const modalDiscussion = document.getElementById('modal-create-discussion');
+    const btnOpenDiscussion = document.getElementById('btn-open-create-discussion');
+    const formDiscussion = document.getElementById('form-create-discussion');
+
+    if (btnOpenDiscussion) {
+        btnOpenDiscussion.addEventListener('click', () => {
+            if (!currentUser) {
+                alert('Please log in to start a discussion.');
+                return;
+            }
+            if (modalDiscussion) modalDiscussion.style.display = 'block';
+        });
+    }
+
+    if (formDiscussion) {
+        formDiscussion.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const title = document.getElementById('discussion-title').value;
+            const category = document.getElementById('discussion-category').value;
+            const content = document.getElementById('discussion-content').value;
+
             try {
-                const commRes = await fetch(`/api/posts/${p.id}/comments`);
-                const comments = await commRes.json();
-                if (comments && comments.length > 0) {
-                    commentsHtml = comments.map(c => `
-                        <div style="background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; margin-bottom: 4px;">
-                            <strong onclick="viewUserProfile('${c.author}')" style="cursor: pointer; color: var(--accent-color);">${c.author}:</strong> ${c.text}
-                        </div>
-                    `).join('');
+                const res = await fetch('/api/discussions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, category, content })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    formDiscussion.reset();
+                    if (modalDiscussion) modalDiscussion.style.display = 'none';
+                    activeDiscussionCategory = category;
+
+                    tabButtons.forEach(t => {
+                        if (t.getAttribute('data-category') === category) t.classList.add('active');
+                        else t.classList.remove('active');
+                    });
+
+                    loadDiscussions(category);
                 } else {
-                    commentsHtml = `<p style="color: var(--text-secondary); font-size: 12px; font-style: italic;">No comments yet.</p>`;
+                    alert(data.error || 'Failed to create discussion.');
                 }
-            } catch (e) {
-                commentsHtml = `<p style="color: #ef4444; font-size: 12px;">Failed to load comments.</p>`;
-            }
-
-            const viewLineArtIcon = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align: middle;"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
-
-            htmlContent += `
-                <div class="card post-item" data-id="${p.id}" style="margin-bottom: 20px;">
-                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <div class="avatar-wrapper" style="width: 28px; height: 28px;"><img src="${p.author_pfp || ''}" alt=""></div>
-                            <span onclick="viewUserProfile('${p.author}')" style="font-weight: 600; font-size: 13px; cursor: pointer; color: var(--accent-color);">${p.author}</span>
-                        </div>
-                    </div>
-                    
-                    <h3 style="font-size: 16px; margin-bottom: 6px;">${p.title}</h3>
-                    <p style="font-size: 14px; color: var(--text-primary); margin-bottom: 10px; white-space: pre-wrap; line-height: 1.4;">${p.caption || ''}</p>
-                    
-                    <a href="${p.scratch_link}" target="_blank">
-                        <img src="${p.thumbnail}" class="project-thumb" alt="Thumbnail" style="width: 100%; border-radius: 8px; margin-bottom: 10px;">
-                    </a>
-                    
-                    <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 14px;">
-                        <button onclick="toggleLike('${p.id}')" class="btn-outline" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; border-color: ${isLiked ? 'var(--accent-color)' : 'var(--border-color)'}; color: ${isLiked ? 'var(--accent-color)' : 'var(--text-primary)'};">
-                            <span>${isLiked ? '❤️' : '🤍'}</span>
-                            <span>Like (${likeCount})</span>
-                        </button>
-                        <div style="font-size: 12px; color: var(--text-secondary); padding: 0 4px; display: flex; align-items: center; gap: 3px;">${viewLineArtIcon} ${viewCount} views</div>
-                    </div>
-
-                    <div style="border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 10px;">
-                        <h4 style="font-size: 13px; margin-bottom: 8px; color: var(--text-secondary);">Comments</h4>
-                        <div style="max-height: 150px; overflow-y: auto; margin-bottom: 8px;">
-                            ${commentsHtml}
-                        </div>
-                        <div style="display: flex; gap: 6px;">
-                            <input type="text" id="comment-input-${p.id}" placeholder="Add a comment..." style="flex: 1; padding: 6px 10px; font-size: 13px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-secondary); color: var(--text-primary);">
-                            <button onclick="submitInlineComment('${p.id}')" class="btn" style="padding: 6px 12px; font-size: 13px;">Send</button>
-                        </div>
-                    </div>
-                </div>
-            `;
-        }
-
-        feed.innerHTML = htmlContent;
-        setupViewObserver();
-    } catch (err) {
-        console.error('Failed to load posts', err);
-    }
-}
-
-// --- VIEW OBSERVER ---
-function setupViewObserver() {
-    const observer = new IntersectionObserver((entries) => {
-        entries.forEach(entry => {
-            if (entry.isIntersecting && currentUser) {
-                const postId = entry.target.getAttribute('data-id');
-                fetch(`/api/posts/${postId}/view`, { method: 'POST' });
-                observer.unobserve(entry.target);
+            } catch (err) {
+                alert('Server error creating discussion.');
             }
         });
-    }, { threshold: 0.6 });
-
-    document.querySelectorAll('.post-item').forEach(el => observer.observe(el));
-}
-
-async function submitInlineComment(postId) {
-    const textInput = document.getElementById(`comment-input-${postId}`);
-    const text = textInput ? textInput.value.trim() : '';
-    if (!text) return;
-    if (!currentUser) return alert('Please login to comment!');
-
-    try {
-        const res = await fetch(`/api/posts/${postId}/comments`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text })
-        });
-        if (res.ok) fetchPosts();
-    } catch (err) {
-        console.error('Comment error', err);
     }
-}
 
-async function toggleLike(postId) {
-    if (!currentUser) return alert('Please login to like posts!');
-    await fetch(`/api/posts/${postId}/like`, { method: 'POST' });
-    fetchPosts();
-}
+    // --- CREATE POST FORM ---
+    const formCreatePost = document.getElementById('form-create-post');
+    const modalCreatePost = document.getElementById('modal-create-post');
+    const btnOpenCreatePost = document.getElementById('btn-open-create-post');
 
-// --- CONTESTS & STUDIOS ---
-async function fetchContests() {
-    const feed = document.getElementById('contests-feed');
-    if (!feed) return;
-    try {
-        const res = await fetch('/api/contests');
-        const contests = await res.json();
-        if (!contests || contests.length === 0) {
-            feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No active contests advertised yet.</div>`;
-            return;
-        }
-        feed.innerHTML = contests.map(c => `
-            <div class="card" style="margin-bottom: 16px;">
-                <h3 style="font-size: 16px; margin-bottom: 4px;">${c.title}</h3>
-                <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 8px;">${c.description || ''}</p>
-                <a href="${c.scratch_link}" target="_blank" class="btn" style="display: inline-block; text-decoration: none; font-size: 13px; padding: 6px 12px;">Visit Contest on Scratch</a>
-            </div>
-        `).join('');
-    } catch (e) { console.error(e); }
-}
-
-async function submitContest() {
-    const titleEl = document.getElementById('contest-title');
-    const descEl = document.getElementById('contest-desc');
-    const prizeEl = document.getElementById('contest-prize');
-    const linkEl = document.getElementById('contest-link');
-    const msg = document.getElementById('contest-msg');
-
-    const title = titleEl ? titleEl.value.trim() : '';
-    const description = descEl ? descEl.value.trim() : '';
-    const prize = prizeEl ? prizeEl.value.trim() : '';
-    const scratchLink = linkEl ? linkEl.value.trim() : '';
-
-    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
-    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
-
-    try {
-        const res = await fetch('/api/contests', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, prize, scratchLink })
+    if (btnOpenCreatePost) {
+        btnOpenCreatePost.addEventListener('click', () => {
+            if (!currentUser) {
+                alert('Please log in to share a project.');
+                return;
+            }
+            if (modalCreatePost) modalCreatePost.style.display = 'block';
         });
-        const data = await res.json();
-
-        if (res.ok) {
-            if (titleEl) titleEl.value = '';
-            if (descEl) descEl.value = '';
-            if (prizeEl) prizeEl.value = '';
-            if (linkEl) linkEl.value = '';
-            showMsg(msg, 'Contest posted successfully!', 'success');
-            fetchContests();
-        } else {
-            showMsg(msg, data.error, 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Failed to post contest.', 'error');
     }
-}
 
-async function fetchStudios() {
-    const feed = document.getElementById('studios-feed');
-    if (!feed) return;
-    try {
-        const res = await fetch('/api/studios');
-        const studios = await res.json();
-        if (!studios || studios.length === 0) {
-            feed.innerHTML = `<div class="card" style="text-align: center; color: var(--text-secondary);">No studios advertised yet.</div>`;
-            return;
-        }
-        feed.innerHTML = studios.map(s => `
-            <div class="card" style="margin-bottom: 16px;">
-                <h3 style="font-size: 16px; margin-bottom: 4px;">${s.title}</h3>
-                <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 10px;">${s.description || ''}</p>
-                <a href="${s.scratch_link}" target="_blank" class="btn" style="display: inline-block; text-decoration: none; font-size: 13px; padding: 6px 12px;">Explore Studio on Scratch</a>
-            </div>
-        `).join('');
-    } catch (e) { console.error(e); }
-}
+    if (formCreatePost) {
+        formCreatePost.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const scratchInput = document.getElementById('post-scratch-input').value;
+            const caption = document.getElementById('post-caption').value;
 
-async function submitStudio() {
-    const titleEl = document.getElementById('studio-title');
-    const descEl = document.getElementById('studio-desc');
-    const linkEl = document.getElementById('studio-link');
-    const msg = document.getElementById('studio-msg');
+            try {
+                const res = await fetch('/api/posts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ scratchInput, caption })
+                });
 
-    const title = titleEl ? titleEl.value.trim() : '';
-    const description = descEl ? descEl.value.trim() : '';
-    const scratchLink = linkEl ? linkEl.value.trim() : '';
-
-    if (!currentUser) return showMsg(msg, 'Please login first!', 'error');
-    if (!title || !scratchLink) return showMsg(msg, 'Title and Scratch link are required.', 'error');
-
-    try {
-        const res = await fetch('/api/studios', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, description, scratchLink })
+                const data = await res.json();
+                if (data.success) {
+                    formCreatePost.reset();
+                    if (modalCreatePost) modalCreatePost.style.display = 'none';
+                    loadPosts();
+                } else {
+                    alert(data.error || 'Failed to post project.');
+                }
+            } catch (err) {
+                alert('Server error posting project.');
+            }
         });
-        const data = await res.json();
-
-        if (res.ok) {
-            if (titleEl) titleEl.value = '';
-            if (descEl) descEl.value = '';
-            if (linkEl) linkEl.value = '';
-            showMsg(msg, 'Studio posted successfully!', 'success');
-            fetchStudios();
-        } else {
-            showMsg(msg, data.error, 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Failed to post studio.', 'error');
     }
-}
 
-// --- STORE ---
-function renderStore() {
-    const storeColors = document.getElementById('store-colors');
-    if (!storeColors) return;
+    // --- CONTESTS & STUDIOS PLACEHOLDERS ---
+    async function loadContests() {
+        const container = document.getElementById('contests-container');
+        if (!container) return;
+        try {
+            const res = await fetch('/api/contests');
+            const data = await res.json();
+            if (!data.length) {
+                container.innerHTML = '<p class="empty-state">No contests available right now.</p>';
+                return;
+            }
+            container.innerHTML = data.map(c => `<div class="card"><h3>${escapeHTML(c.title)}</h3><p>${escapeHTML(c.description || '')}</p></div>`).join('');
+        } catch (err) {
+            container.innerHTML = '<p class="error-state">Failed to load contests.</p>';
+        }
+    }
 
-    storeColors.innerHTML = `
-        <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #f59e0b; padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <span style="background: #d97706; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">🚧 Coming Soon</span>
-            <h3 style="color: #92400e; font-size: 18px; margin: 10px 0 6px 0;">Store In Progress</h3>
-            <p style="color: #b45309; font-size: 13px; margin: 0; line-height: 1.4;">We're currently building out the store features where you can spend your earned coins on custom color themes and badges. Stay tuned!</p>
-        </div>
-        <p style="font-size:13px; color:var(--text-secondary); text-align: center;">Store inventory will appear here once live.</p>
-    `;
-}
+    async function loadStudios() {
+        const container = document.getElementById('studios-container');
+        if (!container) return;
+        try {
+            const res = await fetch('/api/studios');
+            const data = await res.json();
+            if (!data.length) {
+                container.innerHTML = '<p class="empty-state">No studios added yet.</p>';
+                return;
+            }
+            container.innerHTML = data.map(s => `<div class="card"><h3>${escapeHTML(s.title)}</h3><p>${escapeHTML(s.description || '')}</p></div>`).join('');
+        } catch (err) {
+            container.innerHTML = '<p class="error-state">Failed to load studios.</p>';
+        }
+    }
 
-function showMsg(el, text, type) {
-    if (!el) return;
-    el.textContent = text;
-    el.className = `inline-msg ${type}`;
-    el.style.display = 'block';
-    setTimeout(() => { el.style.display = 'none'; }, 4000);
-}
+    // --- GENERAL MODAL CLOSING ---
+    document.querySelectorAll('.modal-close').forEach(closeBtn => {
+        closeBtn.addEventListener('click', (e) => {
+            const modal = e.target.closest('.modal');
+            if (modal) modal.style.display = 'none';
+        });
+    });
+
+    window.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal')) {
+            e.target.style.display = 'none';
+        }
+    });
+
+    function escapeHTML(str) {
+        if (!str) return '';
+        return str.replace(/[&<>'"]/g, 
+            tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+        );
+    }
+
+    // App Startup
+    checkAuth();
+    loadPosts();
+});
