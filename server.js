@@ -89,39 +89,28 @@ app.post('/api/auth/verify', async (req, res) => {
         const { username } = req.body;
         const pending = req.session.pendingUser;
 
-        console.log("Verify attempt for username:", username);
-        console.log("Pending session data:", pending);
-
         if (!pending || pending.username !== username) {
-            console.log("Error: Session expired or username mismatch");
             return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
         }
 
-        // Add timestamp to bypass Scratch API caching
         const timestamp = Date.now();
         const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}?_=${timestamp}`, {
             headers: { 'User-Agent': 'BlockBuzz-Platform' }
         });
         
         if (!scratchRes.ok) {
-            console.log("Error: Could not fetch Scratch profile, status:", scratchRes.status);
             return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
         }
         
         const scratchData = await scratchRes.json();
 
         const aboutMe = scratchData.profile?.biography || '';
-        const wiwo = scratchData.profile?.wiwo || ''; // What I'm working on
+        const wiwo = scratchData.profile?.wiwo || ''; 
         const status = scratchData.profile?.status || '';
-        
-        // Combine About Me, What I'm working on, and Status fields
         const combinedText = `${aboutMe} ${wiwo} ${status}`;
 
-        console.log("Looking for code:", pending.verificationCode);
-        console.log("Found text on profile:", combinedText);
-
         if (!combinedText.includes(pending.verificationCode)) {
-            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found in your About Me, What I'm working on, or Status yet!` });
+            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found on your profile yet!` });
         }
 
         let coins = 50;
@@ -149,10 +138,7 @@ app.post('/api/auth/verify', async (req, res) => {
         };
 
         const { data, error } = await supabase.from('users').insert([newUser]).select();
-        if (error) {
-            console.log("Supabase insert error:", error);
-            throw error;
-        }
+        if (error) throw error;
 
         const userSessionData = {
             username: data[0].username,
@@ -168,7 +154,7 @@ app.post('/api/auth/verify', async (req, res) => {
 
         res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error("Critical verification error:", err);
+        console.error("Verification error:", err);
         res.status(500).json({ error: 'Verification failed.' });
     }
 });
@@ -197,7 +183,6 @@ app.post('/api/auth/login', async (req, res) => {
         req.session.user = userSessionData;
         res.json({ success: true, user: userSessionData });
     } catch (err) {
-        console.error("Login error:", err);
         res.status(500).json({ error: 'Login error.' });
     }
 });
@@ -208,9 +193,31 @@ app.post('/api/auth/logout', (req, res) => {
     res.json({ success: true });
 });
 
+// --- USER PROFILE ROUTE ---
+app.get('/api/users/:username', async (req, res) => {
+    try {
+        const username = req.params.username;
+        const { data: user, error } = await supabase
+            .from('users')
+            .select('username, pfp, coins, badges, referral_code, created_at, is_admin')
+            .eq('username', username)
+            .single();
+
+        if (error || !user) return res.status(404).json({ error: 'User not found.' });
+
+        const { data: posts } = await supabase
+            .from('posts')
+            .select('*')
+            .eq('author', username)
+            .order('created_at', { ascending: false });
+
+        res.json({ user, posts: posts || [] });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to fetch user profile.' });
+    }
+});
 
 // --- POSTS ROUTES ---
-
 app.get('/api/posts', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -218,13 +225,9 @@ app.get('/api/posts', async (req, res) => {
             .select('*')
             .order('created_at', { ascending: false });
         
-        if (error) {
-            console.error("Supabase posts fetch error:", error.message);
-            return res.json([]);
-        }
+        if (error) return res.json([]);
         res.json(data || []);
     } catch (err) {
-        console.error("Server posts error:", err);
         res.json([]);
     }
 });
@@ -254,7 +257,7 @@ app.post('/api/posts', async (req, res) => {
                 if (scratchProjData.image) projectThumbnail = scratchProjData.image;
             }
         } catch (apiErr) {
-            console.log("Could not fetch Scratch API metadata, using defaults:", apiErr.message);
+            console.log("Could not fetch Scratch API metadata:", apiErr.message);
         }
 
         const newPost = {
@@ -270,14 +273,10 @@ app.post('/api/posts', async (req, res) => {
         };
 
         const { data, error } = await supabase.from('posts').insert([newPost]).select();
-        if (error) {
-            console.error("Supabase insert error on post:", error);
-            return res.status(400).json({ error: `Database error: ${error.message}` });
-        }
+        if (error) return res.status(400).json({ error: `Database error: ${error.message}` });
 
         res.json({ success: true, post: data[0] });
     } catch (err) {
-        console.error("Create post critical error:", err);
         res.status(500).json({ error: `Server error: ${err.message}` });
     }
 });
@@ -325,9 +324,7 @@ app.post('/api/posts/:id/view', async (req, res) => {
     }
 });
 
-
 // --- COMMENTS ROUTES ---
-
 app.get('/api/posts/:id/comments', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -364,9 +361,7 @@ app.post('/api/posts/:id/comments', async (req, res) => {
     }
 });
 
-
 // --- CONTESTS & STUDIOS ROUTES ---
-
 app.get('/api/contests', async (req, res) => {
     const { data } = await supabase.from('contests').select('*').order('created_at', { ascending: false });
     res.json(data || []);
