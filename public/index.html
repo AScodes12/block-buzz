@@ -37,7 +37,8 @@
         textarea { resize: vertical; min-height: 80px; }
         .btn { background-color: var(--accent-color); color: #fff; border: none; padding: 10px 24px; border-radius: 99px; font-weight: 500; font-size: 14px; cursor: pointer; }
         .btn:hover { background-color: var(--accent-hover); }
-        .btn-outline { background-color: transparent; color: var(--accent-color); border: 1px solid var(--border-color); padding: 9px 23px; border-radius: 99px; font-weight: 500; font-size: 14px; cursor: pointer; }
+        .btn-outline { background-color: transparent; color: var(--accent-color); border: 1px solid var(--border-color); padding: 9px 23px; border-radius: 99px; font-weight: 500; font-size: 14px; cursor: pointer; display: inline-block; text-align: center; text-decoration: none; }
+        .btn-outline:hover { background-color: #f1f3f4; }
         .avatar-wrapper { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: #e8eaed; flex-shrink: 0; }
         .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
         .project-thumb { width: 100%; aspect-ratio: 16/9; object-fit: cover; border-radius: 8px; margin: 12px 0; border: 1px solid var(--border-color); }
@@ -59,6 +60,8 @@
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(32, 33, 36, 0.6); display: none; justify-content: center; align-items: center; z-index: 200; }
         .modal-card { background: #fff; border-radius: 16px; width: 100%; max-width: 400px; padding: 24px; position: relative; }
         .modal-close { position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 18px; font-weight: bold; cursor: pointer; color: var(--text-secondary); }
+        .auth-switch { text-align: center; margin-top: 12px; font-size: 13px; color: var(--text-secondary); }
+        .auth-switch span { color: var(--accent-color); cursor: pointer; font-weight: 500; }
     </style>
 </head>
 <body>
@@ -168,15 +171,11 @@
         </section>
     </main>
 
+    <!-- Auth Modal Container -->
     <div id="auth-modal" class="modal-overlay">
         <div class="modal-card">
             <button class="modal-close" onclick="closeAuthModal()">✕</button>
-            <h3 style="margin-bottom: 20px; font-size: 18px;">Sign in</h3>
-            <div class="input-group">
-                <input type="text" id="login-username" placeholder="Username">
-                <input type="password" id="login-password" placeholder="Password">
-                <button class="btn" onclick="submitLogin()" style="width: 100%; margin-top: 8px;">Next</button>
-            </div>
+            <div id="auth-modal-body"></div>
         </div>
     </div>
 
