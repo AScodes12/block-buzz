@@ -366,7 +366,6 @@ app.delete('/api/posts/:id', ensureAuthenticated, async (req, res) => {
         const { error: deleteError } = await supabase.from('posts').delete().eq('id', postId);
         if (deleteError) throw deleteError;
 
-        // Clean up related comments
         await supabase.from('comments').delete().eq('post_id', postId);
 
         res.json({ success: true, message: 'Post deleted successfully' });
@@ -416,7 +415,7 @@ app.post('/api/posts/:id/view', ensureAuthenticated, async (req, res) => {
     }
 });
 
-// --- COMMENTS ROUTES (FOR POSTS - Supports Nested Replies via parentId) ---
+// --- COMMENTS ROUTES (FOR POSTS) ---
 app.get('/api/posts/:id/comments', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -557,6 +556,7 @@ app.post('/api/discussions/:id/comments', ensureAuthenticated, async (req, res) 
         const newComment = {
             discussion_id: req.params.id,
             author: req.session.user.username,
+            author_pfp: req.session.user.pfp,
             text: text.trim(),
             created_at: new Date().toISOString()
         };
@@ -566,6 +566,7 @@ app.post('/api/discussions/:id/comments', ensureAuthenticated, async (req, res) 
 
         res.json({ success: true, comment: data[0] });
     } catch (err) {
+        console.error("Discussion comment error:", err);
         res.status(500).json({ error: 'Failed to add response.' });
     }
 });
