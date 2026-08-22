@@ -351,6 +351,30 @@ app.post('/api/posts', ensureAuthenticated, async (req, res) => {
     }
 });
 
+app.delete('/api/posts/:id', ensureAuthenticated, async (req, res) => {
+    try {
+        const postId = req.params.id;
+        const username = req.session.user.username;
+
+        const { data: post, error } = await supabase.from('posts').select('*').eq('id', postId).single();
+        if (error || !post) return res.status(404).json({ error: 'Post not found' });
+
+        if (post.author !== username && !req.session.user.is_admin) {
+            return res.status(403).json({ error: 'You can only delete your own posts' });
+        }
+
+        const { error: deleteError } = await supabase.from('posts').delete().eq('id', postId);
+        if (deleteError) throw deleteError;
+
+        // Clean up related comments
+        await supabase.from('comments').delete().eq('post_id', postId);
+
+        res.json({ success: true, message: 'Post deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to delete post.' });
+    }
+});
+
 app.post('/api/posts/:id/like', ensureAuthenticated, async (req, res) => {
     try {
         const postId = req.params.id;
@@ -392,7 +416,7 @@ app.post('/api/posts/:id/view', ensureAuthenticated, async (req, res) => {
     }
 });
 
-// --- COMMENTS ROUTES (FOR POSTS) ---
+// --- COMMENTS ROUTES (FOR POSTS - Supports Nested Replies via parentId) ---
 app.get('/api/posts/:id/comments', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -409,13 +433,14 @@ app.get('/api/posts/:id/comments', async (req, res) => {
 
 app.post('/api/posts/:id/comments', ensureAuthenticated, async (req, res) => {
     try {
-        const { text } = req.body;
-        if (!text) return res.status(400).json({ error: 'Comment cannot be empty.' });
+        const { text, parentId } = req.body;
+        if (!text || !text.trim()) return res.status(400).json({ error: 'Comment cannot be empty.' });
 
         const newComment = {
             post_id: req.params.id,
             author: req.session.user.username,
-            text: text,
+            text: text.trim(),
+            parent_id: parentId || null,
             created_at: new Date().toISOString()
         };
 
