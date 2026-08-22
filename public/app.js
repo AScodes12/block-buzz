@@ -54,6 +54,57 @@ async function addReply(postId, commentId, inputId) {
     } catch (err) { console.error('Error sending reply'); }
 }
 
+// --- DISCUSSION REPLY FEATURES ---
+function toggleDiscussionReplyBox(discussionId) {
+    const box = document.getElementById('discussion-reply-box-' + discussionId);
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+async function addDiscussionReply(discussionId) {
+    const input = document.getElementById('discussion-reply-input-' + discussionId);
+    if (!input || !input.value.trim()) return;
+    try {
+        const res = await fetch('/api/discussions/' + discussionId + '/replies', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input.value })
+        });
+        if (res.ok) {
+            input.value = '';
+            toggleDiscussionReplyBox(discussionId);
+            loadRepliesForDiscussion(discussionId);
+        } else if (res.status === 401) {
+            openAuthModal('login');
+        }
+    } catch (err) { console.error('Error sending discussion reply'); }
+}
+
+async function loadRepliesForDiscussion(discussionId) {
+    const listContainer = document.getElementById('discussion-comments-list-' + discussionId);
+    if (!listContainer) return;
+    try {
+        const res = await fetch('/api/discussions/' + discussionId + '/replies');
+        const replies = res.ok ? await res.json() : [];
+        if (replies.length === 0) {
+            listContainer.innerHTML = '<p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">No replies yet. Be the first to reply!</p>';
+            return;
+        }
+        let html = '<div style="margin-top: 10px; border-top: 1px solid var(--border-color, #eee); padding-top: 8px;">';
+        for (let i = 0; i < replies.length; i++) {
+            let r = replies[i];
+            html += '<div class="comment-item" style="margin-bottom:6px; font-size: 13px;">' +
+                '<b class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(r.author) + '\')">' + escapeHTML(r.author) + ':</b> ' + escapeHTML(r.text) +
+            '</div>';
+        }
+        html += '</div>';
+        listContainer.innerHTML = html;
+    } catch (err) {
+        listContainer.innerHTML = '<p style="font-size:13px; color:var(--text-secondary);">Failed to load replies.</p>';
+    }
+}
+
 // --- THEME MANAGEMENT ---
 function loadTheme() {
     const isLegacy = localStorage.getItem('blockbuzz_legacy_theme') === 'true';
@@ -282,10 +333,21 @@ async function loadDiscussions(category) {
                 '<p style="font-size:14px; color:var(--text-secondary); margin-bottom:12px;">' + escapeHTML(item.content) + '</p>' +
                 '<div class="post-stats">' +
                     '<button class="stat-btn" onclick="toggleDiscussionUpvote(\'' + item.id + '\')">' + thumbUpIcon + ' <span id="upvote-count-' + item.id + '">' + upvotes + '</span> Upvotes</button>' +
+                    '<button class="stat-btn" onclick="toggleDiscussionReplyBox(\'' + item.id + '\')">💬 Reply</button>' +
+                '</div>' +
+                '<div id="discussion-reply-box-' + item.id + '" style="display:none; margin-top:8px;" class="comment-input-row">' +
+                    '<input type="text" id="discussion-reply-input-' + item.id + '" placeholder="Write a reply to this discussion..." style="padding: 6px 12px; font-size: 13px;">' +
+                    '<button class="btn" style="padding: 6px 16px; font-size: 13px;" onclick="addDiscussionReply(\'' + item.id + '\')">Send</button>' +
+                '</div>' +
+                '<div id="discussion-comments-list-' + item.id + '">' +
+                    '<p style="font-size:13px; color:var(--text-secondary); margin-top:8px;">Loading replies...</p>' +
                 '</div>' +
             '</div>';
         }
         feed.innerHTML = html;
+        for (let i = 0; i < filtered.length; i++) {
+            loadRepliesForDiscussion(filtered[i].id);
+        }
     } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading discussions.</p></div>'; }
 }
 
