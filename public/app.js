@@ -598,9 +598,19 @@ async function submitStudio() {
     }
 }
 
+// --- STORE ---
 function renderStore() {
     const storeColors = document.getElementById('store-colors');
-    if (storeColors) storeColors.innerHTML = `<p style="font-size:13px; color:var(--text-secondary);">Store inventory loaded.</p>`;
+    if (!storeColors) return;
+
+    storeColors.innerHTML = `
+        <div style="background: linear-gradient(135deg, #fef3c7, #fde68a); border: 1px solid #f59e0b; padding: 16px; border-radius: 12px; text-align: center; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+            <span style="background: #d97706; color: white; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">🚧 Coming Soon</span>
+            <h3 style="color: #92400e; font-size: 18px; margin: 10px 0 6px 0;">Store In Progress</h3>
+            <p style="color: #b45309; font-size: 13px; margin: 0; line-height: 1.4;">We're currently building out the store features where you can spend your earned coins on custom color themes and badges. Stay tuned!</p>
+        </div>
+        <p style="font-size:13px; color:var(--text-secondary); text-align: center;">Store inventory will appear here once live.</p>
+    `;
 }
 
 function showMsg(el, text, type) {
