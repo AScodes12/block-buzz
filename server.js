@@ -24,6 +24,7 @@ app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
+app.use(express.static(__dirname));
 
 app.use(session({
     secret: process.env.SESSION_SECRET || 'block-buzz-secret-key',
@@ -429,7 +430,7 @@ app.post('/api/posts/:id/comments', ensureAuthenticated, async (req, res) => {
 // --- DISCUSSIONS ROUTES ---
 app.get('/api/discussions', async (req, res) => {
     try {
-        const category = req.query.category; // Optional filter: 'scratch' or 'feedback'
+        const category = req.query.category;
         let query = supabase.from('discussions').select('*').order('id', { ascending: false });
 
         if (category && ['scratch', 'feedback'].includes(category)) {
@@ -489,9 +490,9 @@ app.post('/api/discussions/:id/upvote', ensureAuthenticated, async (req, res) =>
 
         let upvotes = discussion.upvotes || [];
         if (upvotes.includes(username)) {
-            upvotes = upvotes.filter(u => u !== username); // Remove upvote
+            upvotes = upvotes.filter(u => u !== username);
         } else {
-            upvotes.push(username); // Add upvote
+            upvotes.push(username);
         }
 
         await supabase.from('discussions').update({ upvotes }).eq('id', discussionId);
@@ -519,6 +520,16 @@ app.post('/api/contests', ensureAuthenticated, async (req, res) => {
 app.get('/api/studios', async (req, res) => {
     const { data } = await supabase.from('studios').select('*').order('created_at', { ascending: false, nullsFirst: false });
     res.json(data || []);
+});
+
+app.get('/api/studios/:id', async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('studios').select('*').eq('id', req.params.id).single();
+        if (error || !data) return res.status(404).json({ error: 'Studio not found' });
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error' });
+    }
 });
 
 app.post('/api/studios', ensureAuthenticated, async (req, res) => {
