@@ -392,7 +392,7 @@ app.post('/api/posts/:id/view', ensureAuthenticated, async (req, res) => {
     }
 });
 
-// --- COMMENTS ROUTES ---
+// --- COMMENTS ROUTES (FOR POSTS) ---
 app.get('/api/posts/:id/comments', async (req, res) => {
     try {
         const { data, error } = await supabase
@@ -503,6 +503,45 @@ app.post('/api/discussions/:id/upvote', ensureAuthenticated, async (req, res) =>
         res.json(updated);
     } catch (err) {
         res.status(500).json({ error: 'Failed to toggle upvote.' });
+    }
+});
+
+// --- DISCUSSION COMMENTS / REPLIES ROUTES ---
+app.get('/api/discussions/:id/comments', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('discussion_comments')
+            .select('*')
+            .eq('discussion_id', req.params.id)
+            .order('created_at', { ascending: true });
+        
+        if (error) return res.json([]);
+        res.json(data || []);
+    } catch (err) {
+        res.json([]);
+    }
+});
+
+app.post('/api/discussions/:id/comments', ensureAuthenticated, async (req, res) => {
+    try {
+        const { text } = req.body;
+        if (!text || !text.trim()) {
+            return res.status(400).json({ error: 'Response text cannot be empty.' });
+        }
+
+        const newComment = {
+            discussion_id: req.params.id,
+            author: req.session.user.username,
+            text: text.trim(),
+            created_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase.from('discussion_comments').insert([newComment]).select();
+        if (error) throw error;
+
+        res.json({ success: true, comment: data[0] });
+    } catch (err) {
+        res.status(500).json({ error: 'Failed to add response.' });
     }
 });
 
