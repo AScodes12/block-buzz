@@ -47,7 +47,7 @@ app.get('/api/auth/me', (req, res) => {
     res.json({ user: req.session.user || null });
 });
 
-// Register Step 1: Generate verification code and point user to project 1369788526
+// Register Step 1: Generate verification code and profile instructions
 app.post('/api/auth/register-request', async (req, res) => {
     try {
         const { username, password, referralCode } = req.body;
@@ -56,7 +56,9 @@ app.post('/api/auth/register-request', async (req, res) => {
         const { data: existing } = await supabase.from('users').select('*').eq('username', username).single();
         if (existing) return res.status(400).json({ error: 'Username already registered.' });
 
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`, {
+            headers: { 'User-Agent': 'BlockBuzz-Platform' }
+        });
         if (!scratchRes.ok) return res.status(404).json({ error: 'Scratch user not found.' });
         const scratchData = await scratchRes.json();
         const pfp = scratchData.profile?.images?.['90x90'] || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png';
@@ -69,8 +71,7 @@ app.post('/api/auth/register-request', async (req, res) => {
         res.json({ 
             success: true, 
             verificationCode, 
-            verificationProjectId: '1369788526',
-            verificationProjectUrl: 'https://scratch.mit.edu/projects/1369788526/'
+            profileUrl: `https://scratch.mit.edu/users/${username}/`
         });
     } catch (err) {
         console.error("Register request error:", err);
@@ -78,7 +79,7 @@ app.post('/api/auth/register-request', async (req, res) => {
     }
 });
 
-// Register Step 2: Check project comments for the verification code
+// Register Step 2: Check Scratch Profile Bio & Status for the code
 app.post('/api/auth/verify', async (req, res) => {
     try {
         const { username } = req.body;
@@ -88,20 +89,18 @@ app.post('/api/auth/verify', async (req, res) => {
             return res.status(400).json({ error: 'Verification session expired. Please restart registration.' });
         }
 
-        // Fetch comments from project 1369788526
-        const projectId = '1369788526';
-        const commentsRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}/comments?limit=40`);
-        if (!commentsRes.ok) return res.status(400).json({ error: 'Could not check verification project comments.' });
-        const comments = await commentsRes.json();
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`, {
+            headers: { 'User-Agent': 'BlockBuzz-Platform' }
+        });
+        if (!scratchRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch profile.' });
+        const scratchData = await scratchRes.json();
 
-        // Check if the user posted a comment containing their verification code
-        const validComment = comments.some(c => 
-            c.author.username.toLowerCase() === username.toLowerCase() && 
-            c.content.includes(pending.verificationCode)
-        );
+        const aboutMe = scratchData.profile?.biography || '';
+        const status = scratchData.profile?.status || '';
+        const combinedText = `${aboutMe} ${status}`;
 
-        if (!validComment) {
-            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found in comments on project 1369788526 yet!` });
+        if (!combinedText.includes(pending.verificationCode)) {
+            return res.status(400).json({ error: `Verification code "${pending.verificationCode}" not found in your Scratch Bio or Status yet!` });
         }
 
         let coins = 50;
@@ -206,7 +205,6 @@ app.get('/api/posts', async (req, res) => {
     }
 });
 
-// Resilient Create Post Route with Scratch API Fallback
 app.post('/api/posts', async (req, res) => {
     if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
 
