@@ -114,7 +114,6 @@ async function loadFeed() {
             html += renderPostCard(posts[i]);
         }
         feed.innerHTML = html;
-        // Explicitly load comments for each rendered post
         for (let i = 0; i < posts.length; i++) {
             loadCommentsForPost(posts[i].id);
         }
@@ -240,22 +239,31 @@ async function submitDiscussion() {
     const content = document.getElementById('discussion-content').value;
     const category = document.getElementById('discussion-category').value;
     const msg = document.getElementById('discussion-msg');
+    
     if (!title || !content) return showMsg(msg, 'Title and content required.', 'error');
+    
     try {
         const res = await fetch('/api/discussions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, content, category })
         });
+        
+        const data = await res.json();
+        
         if (res.ok) {
             document.getElementById('discussion-title').value = '';
             document.getElementById('discussion-content').value = '';
-            showMsg(msg, 'Discussion posted.', 'success');
+            showMsg(msg, 'Discussion posted successfully!', 'success');
             loadDiscussions(category);
         } else if (res.status === 401) {
             openAuthModal('login');
+        } else {
+            showMsg(msg, data.error || 'Failed to post discussion.', 'error');
         }
-    } catch (err) { showMsg(msg, 'Error posting.', 'error'); }
+    } catch (err) { 
+        showMsg(msg, 'Network or server error.', 'error'); 
+    }
 }
 
 // --- CONTESTS ---
@@ -401,7 +409,6 @@ async function viewUserProfile(username) {
             '<h3 style="margin: 16px 0 8px 0; font-size: 16px;">User Projects</h3>' +
             (postsHtml || '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No projects posted yet.</p></div>');
         
-        // Explicitly load comments for each user project
         for(let i=0; i<posts.length; i++) {
             loadCommentsForPost(posts[i].id);
         }
