@@ -75,7 +75,7 @@ function renderProfile() {
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
                         <input type="password" id="signup-password" placeholder="Create Password">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
-                        <button onclick="requestVerification()" class="btn">Next: Verify Profile</button>
+                        <button onclick="requestVerification()" class="btn" style="width: 100%;">Next: Verify Profile</button>
                         <div id="account-msg-1" class="inline-msg"></div>
                     </div>
                 </div>
@@ -87,7 +87,7 @@ function renderProfile() {
                     <div class="input-group">
                         <input type="text" id="login-username" placeholder="Scratch Username">
                         <input type="password" id="login-password" placeholder="Password">
-                        <button onclick="loginUser()" class="btn">Log In</button>
+                        <button onclick="loginUser()" class="btn" style="width: 100%;">Log In</button>
                         <div id="account-msg-3" class="inline-msg"></div>
                     </div>
                 </div>
@@ -178,7 +178,6 @@ async function requestVerification() {
                 <div id="account-msg-2" class="inline-msg" style="margin-top: 10px;"></div>
             `;
 
-            // Start 30-second countdown
             let timeLeft = 30;
             const countdownEl = document.getElementById('countdown');
             const checkBtn = document.getElementById('check-btn');
@@ -267,6 +266,65 @@ async function logout() {
     renderProfile();
 }
 
+// --- VIEW OTHER USER PROFILE ---
+async function viewUserProfile(username) {
+    try {
+        const res = await fetch(`/api/users/${username}`);
+        const data = await res.json();
+
+        if (!res.ok) {
+            return alert(data.error || 'Could not load profile.');
+        }
+
+        const profileUser = data.user;
+        const userPosts = data.posts;
+
+        document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+        document.querySelectorAll('nav .nav-link').forEach(btn => btn.classList.remove('active'));
+
+        let targetSection = document.getElementById('user-profile-section');
+        if (!targetSection) {
+            targetSection = document.createElement('div');
+            targetSection.id = 'user-profile-section';
+            targetSection.className = 'tab-content';
+            document.querySelector('main').appendChild(targetSection);
+        }
+        targetSection.style.display = 'block';
+
+        targetSection.innerHTML = `
+            <div class="card" style="max-width: 600px; margin: 0 auto 20px auto;">
+                <button onclick="switchTab('home')" class="btn-outline" style="margin-bottom: 16px; padding: 6px 12px; font-size: 12px;">← Back to Feed</button>
+                <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+                    <div class="avatar-wrapper" style="width: 60px; height: 60px;"><img src="${profileUser.pfp}" alt="PFP"></div>
+                    <div>
+                        <h2>${profileUser.username}</h2>
+                        <div style="display: flex; gap: 6px; margin-top: 6px;">
+                            ${(profileUser.badges || []).map(b => `<span style="background: #eff6ff; color: var(--accent-color); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">${b}</span>`).join('')}
+                            ${profileUser.is_admin ? '<span style="background: #fee2e2; color: #dc2626; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: bold;">Admin</span>' : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 style="margin-bottom: 12px; font-size: 16px;">Projects by ${profileUser.username}</h3>
+            <div>
+                ${userPosts.length === 0 ? '<div class="card" style="text-align: center; color: var(--text-secondary);">No projects posted yet.</div>' : userPosts.map(p => `
+                    <div class="card" style="margin-bottom: 16px;">
+                        <h4 style="font-size: 15px; margin-bottom: 4px;">${p.title}</h4>
+                        <p style="font-size: 13px; color: var(--text-primary); margin-bottom: 8px;">${p.caption || ''}</p>
+                        <a href="${p.scratch_link}" target="_blank">
+                            <img src="${p.thumbnail}" class="project-thumb" alt="Thumbnail" style="width: 100%; border-radius: 8px;">
+                        </a>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    } catch (err) {
+        console.error('Failed to view profile', err);
+        alert('Failed to load user profile.');
+    }
+}
+
 // --- POSTS & FEED ---
 async function submitPost() {
     const scratchInputEl = document.getElementById('scratch-input');
@@ -326,7 +384,7 @@ async function fetchPosts() {
                 if (comments && comments.length > 0) {
                     commentsHtml = comments.map(c => `
                         <div style="background: #f8fafc; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border-color); font-size: 12px; margin-bottom: 4px;">
-                            <strong>${c.author}:</strong> ${c.text}
+                            <strong onclick="viewUserProfile('${c.author}')" style="cursor: pointer; color: var(--accent-color);">${c.author}:</strong> ${c.text}
                         </div>
                     `).join('');
                 } else {
@@ -343,7 +401,7 @@ async function fetchPosts() {
                     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <div class="avatar-wrapper" style="width: 28px; height: 28px;"><img src="${p.author_pfp || ''}" alt=""></div>
-                            <span style="font-weight: 600; font-size: 13px;">${p.author}</span>
+                            <span onclick="viewUserProfile('${p.author}')" style="font-weight: 600; font-size: 13px; cursor: pointer; color: var(--accent-color);">${p.author}</span>
                         </div>
                     </div>
                     
