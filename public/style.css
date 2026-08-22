@@ -200,14 +200,25 @@ textarea {
     display: block;
 }
 
-input[type="password"] {
+input[type="password"],
+input[type="text"],
+input[type="email"],
+textarea {
     width: 100%;
     padding: 10px 14px;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     font-size: 14px;
     color: var(--text-primary);
+    background-color: #ffffff;
     outline: none;
+    transition: border-color 0.2s ease;
+}
+
+input[type="password"]:focus,
+input[type="text"]:focus,
+textarea:focus {
+    border-color: var(--accent-color);
 }
 
 #studio-section button, 
