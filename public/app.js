@@ -1,5 +1,4 @@
 let currentUser = null;
-let pendingVerification = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     checkSession();
@@ -69,22 +68,14 @@ function renderProfile() {
                 <!-- SIGN UP FORM -->
                 <div id="auth-signup-form">
                     <h2>Scratch Sign Up</h2>
-                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Verify via Scratch and create your platform password.</p>
+                    <p style="color:var(--text-secondary); margin-bottom: 16px; font-size: 13px;">Create your platform account using your Scratch username and a new password.</p>
                     
-                    <div id="signup-step-1" class="input-group">
+                    <div class="input-group">
                         <input type="text" id="scratch-username" placeholder="Scratch Username">
                         <input type="password" id="signup-password" placeholder="Create Password">
                         <input type="text" id="referral-code-input" placeholder="Referral Code (Optional)">
-                        <button onclick="requestVerification()" class="btn">Get Verification Code</button>
+                        <button onclick="registerUser()" class="btn">Sign Up</button>
                         <div id="account-msg-1" class="inline-msg"></div>
-                    </div>
-
-                    <div id="signup-step-2" class="input-group" style="display: none;">
-                        <p style="font-size: 13px;">Paste this code into your <strong>Scratch Bio</strong>:</p>
-                        <div id="code-display" style="font-size: 16px; font-weight: bold; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px dashed var(--accent-color); color: var(--accent-color); text-align: center;"></div>
-                        <button onclick="confirmVerification()" class="btn">Verify & Register</button>
-                        <button onclick="resetVerification()" class="btn-outline" style="margin-top: 6px;">Back</button>
-                        <div id="account-msg-2" class="inline-msg"></div>
                     </div>
                 </div>
 
@@ -146,7 +137,7 @@ function switchAuthMode(mode) {
     }
 }
 
-async function requestVerification() {
+async function registerUser() {
     const usernameInput = document.getElementById('scratch-username');
     const passwordInput = document.getElementById('signup-password');
     const referralInput = document.getElementById('referral-code-input');
@@ -161,49 +152,11 @@ async function requestVerification() {
     }
 
     try {
-        const res = await fetch('/api/auth/register-request', {
+        const res = await fetch('/api/auth/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ username, password, referralCode })
         });
-        const data = await res.json();
-
-        if (res.ok) {
-            pendingVerification = username;
-            const codeDisplay = document.getElementById('code-display');
-            const step1 = document.getElementById('signup-step-1');
-            const step2 = document.getElementById('signup-step-2');
-            
-            if (codeDisplay) codeDisplay.textContent = data.verificationCode;
-            if (step1) step1.style.display = 'none';
-            if (step2) step2.style.display = 'flex';
-        } else {
-            showMsg(msg, data.error, 'error');
-        }
-    } catch (err) {
-        showMsg(msg, 'Network error. Try again.', 'error');
-    }
-}
-
-function resetVerification() {
-    const step2 = document.getElementById('signup-step-2');
-    const step1 = document.getElementById('signup-step-1');
-    if (step2) step2.style.display = 'none';
-    if (step1) step1.style.display = 'flex';
-    pendingVerification = null;
-}
-
-async function confirmVerification() {
-    const msg = document.getElementById('account-msg-2');
-    if (!pendingVerification) return showMsg(msg, 'Session expired. Restart registration.', 'error');
-
-    try {
-        const res = await fetch('/api/auth/verify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username: pendingVerification })
-        });
-        
         const data = await res.json();
 
         if (res.ok) {
@@ -214,8 +167,7 @@ async function confirmVerification() {
             showMsg(msg, data.error, 'error');
         }
     } catch (err) {
-        console.error('Verification error:', err);
-        showMsg(msg, 'Verification failed. Make sure your code is saved in your Scratch bio!', 'error');
+        showMsg(msg, 'Registration failed. Try again.', 'error');
     }
 }
 
