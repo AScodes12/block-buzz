@@ -1,207 +1,261 @@
 const express = require('express');
 const session = require('express-session');
+const bcrypt = require('bcrypt');
 const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- IN-MEMORY STORAGE ---
-const users = new Map(); 
-const pendingVerifications = new Map(); 
-const posts = [];
-const contests = [];
-const studios = [];
-
-// --- MIDDLEWARE ---
+// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(session({
-    secret: 'scratch-community-secret-key',
+    secret: 'block-buzz-secure-secret-key',
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }
+    cookie: { secure: false, httpOnly: true, maxAge: 24 * 60 * 60 * 1000 }
 }));
 
-app.use(express.static(path.join(__dirname, 'public')));
+// In-Memory Databases (Replace with a real DB like MongoDB/PostgreSQL for production)
+const usersDB = new Map(); // username -> user object
+const pendingRegistrations = new Map(); // username -> { code, passwordHash, referralCode }
+const postsDB = [];
+const contestsDB = [];
+const studiosDB = [];
+
+// Helper functions
+function generateCode() {
+    return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
 
 function generateReferralCode() {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
 }
 
-// ================= AUTH & VERIFICATION =================
+// --- AUTH ROUTES ---
 
-app.post('/api/auth/register-request', (req, res) => {
-    const { username, referralCode } = req.body;
-    if (!username) return res.status(400).json({ error: 'Username is required.' });
+// Step 1: Request registration code
+app.post('/api/auth/register-request', async (req, res) => {
+    try {
+        const { username, password, referralCode } = req.body;
+        if (!username || !password) {
+            return res.status(400).json({ error: 'Username and password are required.' });
+        }
 
-    const cleanUsername = username.trim();
-    const verificationCode = 'SCRATCH-' + Math.floor(100000 + Math.random() * 900000);
-    
-    pendingVerifications.set(cleanUsername, {
-        verificationCode,
-        referralCode: referralCode ? referralCode.trim() : null,
-        timestamp: Date.now()
-    });
+        if (usersDB.has(username)) {
+            return res.status(400).json({ error: 'Username is already registered.' });
+        }
 
-    return res.json({ success: true, verificationCode });
+        const verificationCode = `BB-${generateCode()}`;
+        const passwordHash = await bcrypt.hash(password, 10);
+
+        pendingRegistrations.set(username, {
+            code: verificationCode,
+            passwordHash,
+            referralCode: referralCode || null
+        });
+
+        res.json({ success: true, verificationCode });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
 });
 
+// Step 2: Verify via backend fetching Scratch (Bypasses CORS and Render IP block issues)
 app.post('/api/auth/verify', async (req, res) => {
     try {
         const { username } = req.body;
-        if (!username) return res.status(400).json({ error: 'Username is required.' });
+        const pending = pendingRegistrations.get(username);
 
-        const cleanUsername = username.trim();
-        const pending = pendingVerifications.get(cleanUsername);
-        
         if (!pending) {
-            return res.status(400).json({ error: 'No pending verification found. Please request a code first.' });
+            return res.status(400).json({ error: 'No pending registration found. Please restart.' });
         }
 
-        // Fetch public data from Scratch API with standard browser headers to bypass cloud blocks
-        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${cleanUsername}`, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json'
-            }
-        });
-
+        // Fetch Scratch profile server-side
+        const scratchRes = await fetch(`https://api.scratch.mit.edu/users/${username}`);
         if (!scratchRes.ok) {
-            return res.status(400).json({ error: 'Could not connect to Scratch API or user not found.' });
+            return res.status(400).json({ error: 'Could not reach Scratch API. Check username spelling.' });
         }
 
         const scratchData = await scratchRes.json();
-        
-        const bio = (scratchData.profile && scratchData.profile.bio) || scratchData.bio || '';
-        const status = (scratchData.profile && scratchData.profile.status) || scratchData.status || '';
-        const expectedCode = pending.verificationCode;
+        const bio = scratchData.profile?.bio || '';
+        const status = scratchData.profile?.status || '';
 
-        console.log(`Checking user ${cleanUsername} for code: ${expectedCode}`);
-        console.log(`Fetched Bio: "${bio}" | Status: "${status}"`);
-
-        if (bio.includes(expectedCode) || status.includes(expectedCode)) {
+        // Check if verification code exists in bio or status
+        if (bio.includes(pending.code) || status.includes(pending.code)) {
             const newUser = {
-                username: cleanUsername,
-                pfp: (scratchData.profile && scratchData.profile.images && scratchData.profile.images['90x90']) || '',
-                coins: 50,
-                referral_code: generateReferralCode(),
+                username,
+                passwordHash: pending.passwordHash,
+                pfp: scratchData.profile?.images?.['90x90'] || '',
+                coins: 100,
                 badges: ['Verified'],
-                is_admin: users.size === 0
+                referral_code: generateReferralCode(),
+                is_admin: usersDB.size === 0 // First user becomes admin
             };
 
-            users.set(cleanUsername, newUser);
-            pendingVerifications.delete(cleanUsername);
-            req.session.user = newUser;
-            
-            return res.json({ success: true, user: newUser });
+            usersDB.set(username, newUser);
+            pendingRegistrations.delete(username);
+
+            // Set session
+            req.session.user = {
+                username: newUser.username,
+                pfp: newUser.pfp,
+                coins: newUser.coins,
+                badges: newUser.badges,
+                referral_code: newUser.referral_code,
+                is_admin: newUser.is_admin
+            };
+
+            return res.json({ success: true, user: req.session.user });
         } else {
-            return res.status(400).json({ 
-                error: `Code "${expectedCode}" not found in your Scratch bio yet. Save it in your "About Me" and wait 30 seconds.` 
-            });
+            return res.status(400).json({ error: 'Verification code not found in your Scratch bio or status!' });
         }
     } catch (err) {
         console.error('Verification error:', err);
-        return res.status(500).json({ error: 'Server error communicating with Scratch.' });
+        res.status(500).json({ error: 'Server error during verification.' });
     }
 });
 
-app.get('/api/auth/me', (req, res) => {
-    if (req.session && req.session.user) {
-        const currentUser = users.get(req.session.user.username) || req.session.user;
-        return res.json({ user: currentUser });
-    }
-    return res.json({ user: null });
-});
-
-// ================= POSTS =================
-
-app.get('/api/posts', (req, res) => {
-    res.json(posts);
-});
-
-app.post('/api/posts', async (req, res) => {
-    if (!req.session || !req.session.user) {
-        return res.status(401).json({ error: 'Unauthorized. Please login.' });
-    }
-
-    const { scratchInput, caption } = req.body;
-    if (!scratchInput) return res.status(400).json({ error: 'Project input required.' });
-
-    let projectId = scratchInput.trim();
-    const match = projectId.match(/\/projects\/(\d+)/);
-    if (match) projectId = match[1];
-
+// Login
+app.post('/api/auth/login', async (req, res) => {
     try {
-        const projRes = await fetch(`https://api.scratch.mit.edu/projects/${projectId}`, {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                'Accept': 'application/json'
-            }
-        });
-        if (!projRes.ok) return res.status(400).json({ error: 'Could not fetch Scratch project. Make sure it is shared.' });
-        
-        const projData = await projRes.json();
+        const { username, password } = req.body;
+        const user = usersDB.get(username);
 
-        const newPost = {
-            id: Date.now().toString(),
-            scratchId: projectId,
-            title: projData.title || 'Untitled Project',
-            thumbnail: projData.image || '',
-            caption: caption ? caption.trim() : '',
-            author: req.session.user.username,
-            author_pfp: req.session.user.pfp,
-            author_color: req.session.user.color || '#000000',
-            likes: [],
-            views: [],
-            createdAt: new Date()
+        if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
+            return res.status(400).json({ error: 'Invalid username or password.' });
+        }
+
+        req.session.user = {
+            username: user.username,
+            pfp: user.pfp,
+            coins: user.coins,
+            badges: user.badges,
+            referral_code: user.referral_code,
+            is_admin: user.is_admin
         };
 
-        posts.unshift(newPost);
-        res.json({ success: true, post: newPost });
+        res.json({ success: true, user: req.session.user });
     } catch (err) {
-        res.status(500).json({ error: 'Failed to process project.' });
+        res.status(500).json({ error: 'Login failed.' });
     }
 });
 
-// ================= STUDIOS & CONTESTS =================
-
-app.get('/api/studios', (req, res) => res.json(studios));
-app.post('/api/studios', (req, res) => {
-    if (!req.session || !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
-    const { title, description, scratchLink } = req.body;
-    if (!title || !scratchLink) return res.status(400).json({ error: 'Fields required' });
-    
-    studios.unshift({
-        id: Date.now().toString(),
-        title: title.trim(),
-        description: description ? description.trim() : '',
-        scratch_link: scratchLink.trim(),
-        author: req.session.user.username,
-        author_pfp: req.session.user.pfp
-    });
-    res.json({ success: true });
+// Check Session
+app.get('/api/auth/me', (req, res) => {
+    res.json({ user: req.session.user || null });
 });
 
-app.get('/api/contests', (req, res) => res.json(contests));
+// Logout
+app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy(() => {
+        res.json({ success: true });
+    });
+});
+
+// --- POSTS ROUTES ---
+app.get('/api/posts', (req, res) => {
+    res.json(postsDB);
+});
+
+app.post('/api/posts', (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { scratchInput, caption } = req.body;
+
+    // Simple ID extractor from Scratch URL
+    const match = scratchInput.match(/\d+/);
+    const projectId = match ? match[0] : scratchInput.trim();
+
+    if (!projectId) return res.status(400).json({ error: 'Invalid Scratch Project ID/URL.' });
+
+    const newPost = {
+        id: Date.now().toString(),
+        author: req.session.user.username,
+        author_pfp: req.session.user.pfp,
+        title: `Project #${projectId}`,
+        caption: caption || '',
+        thumbnail: `https://uploads.scratch.mit.edu/get_image/project/${projectId}_480x360.png`,
+        scratch_link: `https://scratch.mit.edu/projects/${projectId}`,
+        likes: [],
+        views: [],
+        comments: [],
+        createdAt: new Date()
+    };
+
+    postsDB.unshift(newPost);
+    res.json({ success: true, post: newPost });
+});
+
+app.post('/api/posts/:id/like', (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    const post = postsDB.find(p => p.id === req.params.id);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    const username = req.session.user.username;
+    const index = post.likes.indexOf(username);
+    if (index > -1) {
+        post.likes.splice(index, 1);
+    } else {
+        post.likes.push(username);
+    }
+    res.json({ success: true, likes: post.likes.length });
+});
+
+app.get('/api/posts/:id/comments', (req, res) => {
+    const post = postsDB.find(p => p.id === req.params.id);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+    res.json(post.comments);
+});
+
+app.post('/api/posts/:id/comments', (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    const post = postsDB.find(p => p.id === req.params.id);
+    if (!post) return res.status(404).json({ error: 'Post not found' });
+
+    const { text } = req.body;
+    if (!text) return res.status(400).json({ error: 'Comment cannot be empty' });
+
+    const comment = {
+        id: Date.now().toString(),
+        author: req.session.user.username,
+        text,
+        createdAt: new Date()
+    };
+
+    post.comments.push(comment);
+    res.json({ success: true, comment });
+});
+
+app.post('/api/posts/:id/view', (req, res) => {
+    if (!req.session.user) return res.sendStatus(401);
+    const post = postsDB.find(p => p.id === req.params.id);
+    if (!post) return res.sendStatus(404);
+
+    const username = req.session.user.username;
+    if (!post.views.includes(username)) {
+        post.views.push(username);
+    }
+    res.sendStatus(200);
+});
+
+// --- CONTESTS & STUDIOS ---
+app.get('/api/contests', (req, res) => res.json(contestsDB));
 app.post('/api/contests', (req, res) => {
-    if (!req.session || !req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
     const { title, description, prize, scratchLink } = req.body;
-    if (!title || !scratchLink) return res.status(400).json({ error: 'Fields required' });
-    
-    contests.unshift({
-        id: Date.now().toString(),
-        title: title.trim(),
-        description: description ? description.trim() : '',
-        prize: prize ? prize.trim() : '',
-        scratch_link: scratchLink.trim(),
-        author: req.session.user.username,
-        author_pfp: req.session.user.pfp
-    });
+    contestsDB.unshift({ id: Date.now().toString(), author: req.session.user.username, author_pfp: req.session.user.pfp, title, description, prize, scratch_link: scratchLink });
     res.json({ success: true });
 });
 
-app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get('/api/studios', (req, res) => res.json(studiosDB));
+app.post('/api/studios', (req, res) => {
+    if (!req.session.user) return res.status(401).json({ error: 'Unauthorized' });
+    const { title, description, scratchLink } = req.body;
+    studiosDB.unshift({ id: Date.now().toString(), author: req.session.user.username, author_pfp: req.session.user.pfp, title, description, scratch_link: scratchLink });
+    res.json({ success: true });
 });
 
 app.listen(PORT, () => {
