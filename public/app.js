@@ -47,21 +47,14 @@ function switchTab(tabName) {
 // --- POSTS & FEED ---
 async function renderPostCard(post) {
     const postId = post.id;
-    
-    // SAFE PARSER: If views/likes are arrays from Supabase, get their length! Otherwise parse as number.
     const views = Array.isArray(post.views) ? post.views.length : (Number(post.views) || 0);
     const likes = Array.isArray(post.likes) ? post.likes.length : (Number(post.likes) || 0);
 
-    // Fetch comments from the separate database table for this specific post
     let comments = [];
     try {
         const commentRes = await fetch('/api/posts/' + postId + '/comments');
-        if (commentRes.ok) {
-            comments = await commentRes.json();
-        }
-    } catch (err) {
-        console.error('Failed to load comments for post ' + postId);
-    }
+        if (commentRes.ok) comments = await commentRes.json();
+    } catch (err) { console.error('Failed to load comments'); }
 
     const eyeIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
     const heartIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/></svg>';
@@ -72,9 +65,7 @@ async function renderPostCard(post) {
         let c = comments[i];
         commentsHtml += '<div class="comment-item"><b>' + escapeHTML(c.author) + ':</b> ' + escapeHTML(c.text) + '</div>';
     }
-    if (comments.length === 0) {
-        commentsHtml = '<p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">No comments yet. Be the first!</p>';
-    }
+    if (comments.length === 0) commentsHtml = '<p style="font-size:13px; color:var(--text-secondary); margin-bottom:8px;">No comments yet.</p>';
 
     return '<div class="card" id="post-' + postId + '">' +
         '<div style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">' +
@@ -110,7 +101,7 @@ async function loadFeed() {
         const res = await fetch('/api/posts');
         const posts = res.ok ? await res.json() : [];
         if (posts.length === 0) {
-            feed.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No projects found in database. Share one above!</p></div>';
+            feed.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No projects found.</p></div>';
             return;
         }
         let html = '';
@@ -118,9 +109,7 @@ async function loadFeed() {
             html += await renderPostCard(posts[i]);
         }
         feed.innerHTML = html;
-    } catch (err) {
-        feed.innerHTML = '<div class="card"><p style="text-align:center; color:#c5221f;">Error loading posts from database.</p></div>';
-    }
+    } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading posts.</p></div>'; }
 }
 
 async function submitPost() {
@@ -135,18 +124,13 @@ async function submitPost() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ scratchInput, caption })
         });
-        const data = await res.json();
-        if (res.ok && data.success !== false) {
+        if (res.ok) {
             document.getElementById('scratch-input').value = '';
             document.getElementById('post-caption').value = '';
-            showMsg(msg, 'Project posted to database!', 'success');
+            showMsg(msg, 'Project posted!', 'success');
             loadFeed();
-        } else {
-            showMsg(msg, data.error || 'Failed to post project.', 'error');
         }
-    } catch (err) {
-        showMsg(msg, 'Network error while posting.', 'error');
-    }
+    } catch (err) { showMsg(msg, 'Network error.', 'error'); }
 }
 
 async function toggleLike(postId) {
@@ -157,31 +141,23 @@ async function toggleLike(postId) {
             const countSpan = document.getElementById('like-count-' + postId);
             if (countSpan) countSpan.textContent = data.likes;
         }
-    } catch (err) {
-        console.error('Error liking post');
-    }
+    } catch (err) { console.error('Error liking'); }
 }
 
 async function addComment(postId) {
     const input = document.getElementById('comment-input-' + postId);
     if (!input || !input.value.trim()) return;
-
     try {
         const res = await fetch('/api/posts/' + postId + '/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ text: input.value })
         });
-        if (res.ok) {
-            input.value = '';
-            loadFeed();
-        }
-    } catch (err) {
-        console.error('Error adding comment');
-    }
+        if (res.ok) { input.value = ''; loadFeed(); }
+    } catch (err) { console.error('Error commenting'); }
 }
 
-// --- DISCUSSIONS, CONTESTS, STUDIOS, NOTIFICATIONS ---
+// --- DISCUSSIONS ---
 function switchDiscussionCategory(category) {
     currentDiscussionCategory = category;
     document.querySelectorAll('.disc-tab-btn').forEach(btn => btn.classList.remove('active'));
@@ -192,15 +168,16 @@ function switchDiscussionCategory(category) {
 async function loadDiscussions(category) {
     const feed = document.getElementById('discussions-feed');
     try {
-        const res = await fetch('/api/discussions?category=' + category);
+        const res = await fetch('/api/discussions');
         const items = res.ok ? await res.json() : [];
-        if (items.length === 0) {
+        const filtered = items.filter(item => (item.category || 'scratch') === category);
+        if (filtered.length === 0) {
             feed.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No discussions found.</p></div>';
             return;
         }
         let html = '';
-        for (let i = 0; i < items.length; i++) {
-            let item = items[i];
+        for (let i = 0; i < filtered.length; i++) {
+            let item = filtered[i];
             html += '<div class="card">' +
                 '<span class="clickable-user" onclick="viewUserProfile(\'' + escapeHTML(item.author) + '\')">' + escapeHTML(item.author) + '</span>' +
                 '<h3 style="font-size:16px; margin:4px 0;">' + escapeHTML(item.title) + '</h3>' +
@@ -208,9 +185,7 @@ async function loadDiscussions(category) {
             '</div>';
         }
         feed.innerHTML = html;
-    } catch (err) {
-        feed.innerHTML = '<div class="card"><p>Error loading discussions.</p></div>';
-    }
+    } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading discussions.</p></div>'; }
 }
 
 async function submitDiscussion() {
@@ -218,7 +193,6 @@ async function submitDiscussion() {
     const content = document.getElementById('discussion-content').value;
     const category = document.getElementById('discussion-category').value;
     const msg = document.getElementById('discussion-msg');
-
     if (!title || !content) return showMsg(msg, 'Title and content required.', 'error');
     try {
         const res = await fetch('/api/discussions', {
@@ -232,58 +206,108 @@ async function submitDiscussion() {
             showMsg(msg, 'Discussion posted.', 'success');
             loadDiscussions(category);
         }
-    } catch (err) { showMsg(msg, 'Error posting discussion.', 'error'); }
+    } catch (err) { showMsg(msg, 'Error posting.', 'error'); }
 }
 
+// --- CONTESTS ---
 async function loadContests() {
     const feed = document.getElementById('contests-feed');
     try {
         const res = await fetch('/api/contests');
         const contests = res.ok ? await res.json() : [];
-        if (contests.length > 0) {
-            let html = '';
-            for (let i = 0; i < contests.length; i++) {
-                html += '<div class="card"><h3>' + escapeHTML(contests[i].title) + '</h3><p>' + escapeHTML(contests[i].description) + '</p></div>';
-            }
-            feed.innerHTML = html;
+        
+        let html = '';
+        if (contests.length === 0) {
+            html = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No contests found.</p></div>';
         } else {
-            feed.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No contests found.</p></div>';
+            for (let i = 0; i < contests.length; i++) {
+                let c = contests[i];
+                html += '<div class="card">' +
+                    '<h3 style="font-size: 16px; color:var(--text-primary);">' + escapeHTML(c.title) + '</h3>' +
+                    '<p style="font-size: 14px; color:var(--text-secondary); margin-top:4px;">' + escapeHTML(c.description) + '</p>' +
+                '</div>';
+            }
         }
+        feed.innerHTML = html;
     } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading contests.</p></div>'; }
 }
 
+async function submitContest() {
+    const title = document.getElementById('contest-title').value;
+    const description = document.getElementById('contest-desc').value;
+    const msg = document.getElementById('contest-msg');
+    if (!title) return showMsg(msg, 'Contest title is required.', 'error');
+    try {
+        const res = await fetch('/api/contests', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description })
+        });
+        if (res.ok) {
+            document.getElementById('contest-title').value = '';
+            document.getElementById('contest-desc').value = '';
+            showMsg(msg, 'Contest published!', 'success');
+            loadContests();
+        }
+    } catch (err) { showMsg(msg, 'Error publishing contest.', 'error'); }
+}
+
+// --- STUDIOS & STUDIO DETAIL PAGE ---
 async function loadStudios() {
     const feed = document.getElementById('studios-feed');
     try {
         const res = await fetch('/api/studios');
         const studios = res.ok ? await res.json() : [];
-        if (studios.length > 0) {
-            let html = '';
-            for (let i = 0; i < studios.length; i++) {
-                html += '<div class="card"><h3>' + escapeHTML(studios[i].title) + '</h3><p>' + escapeHTML(studios[i].description) + '</p></div>';
-            }
-            feed.innerHTML = html;
+        
+        let html = '';
+        if (studios.length === 0) {
+            html = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No studios found.</p></div>';
         } else {
-            feed.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No studios found.</p></div>';
+            for (let i = 0; i < studios.length; i++) {
+                let s = studios[i];
+                html += '<div class="card" style="cursor:pointer;" onclick="viewStudioDetails(\'' + (s.id || '') + '\', \'' + escapeHTML(s.title) + '\', \'' + escapeHTML(s.description) + '\')">' +
+                    '<h3 style="font-size: 16px; color:var(--accent-color);">' + escapeHTML(s.title) + '</h3>' +
+                    '<p style="font-size: 14px; color:var(--text-secondary); margin-top:4px;">' + escapeHTML(s.description) + '</p>' +
+                '</div>';
+            }
         }
+        feed.innerHTML = html;
     } catch (err) { feed.innerHTML = '<div class="card"><p>Error loading studios.</p></div>'; }
+}
+
+async function submitStudio() {
+    const title = document.getElementById('studio-title').value;
+    const description = document.getElementById('studio-desc').value;
+    const msg = document.getElementById('studio-msg');
+    if (!title) return showMsg(msg, 'Studio name is required.', 'error');
+    try {
+        const res = await fetch('/api/studios', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, description })
+        });
+        if (res.ok) {
+            document.getElementById('studio-title').value = '';
+            document.getElementById('studio-desc').value = '';
+            showMsg(msg, 'Studio created successfully!', 'success');
+            loadStudios();
+        }
+    } catch (err) { showMsg(msg, 'Error creating studio.', 'error'); }
+}
+
+function viewStudioDetails(id, title, description) {
+    switchTab('studio-detail');
+    const container = document.getElementById('studio-detail-content');
+    container.innerHTML = '<button class="btn-outline" onclick="switchTab(\'studios\')" style="margin-bottom: 12px;">← Back to Studios</button>' +
+        '<div class="card">' +
+            '<h2 style="font-size: 20px; color:var(--text-primary); margin-bottom: 8px;">' + escapeHTML(title) + '</h2>' +
+            '<p style="font-size: 14px; color:var(--text-secondary);">' + escapeHTML(description) + '</p>' +
+        '</div>';
 }
 
 async function loadNotifications() {
     const section = document.getElementById('notifications-section');
-    try {
-        const res = await fetch('/api/notifications');
-        const notifs = res.ok ? await res.json() : [];
-        if (notifs.length > 0) {
-            let html = '';
-            for (let i = 0; i < notifs.length; i++) {
-                html += '<div class="card"><p>' + escapeHTML(notifs[i].message) + '</p></div>';
-            }
-            section.innerHTML = html;
-        } else {
-            section.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No notifications.</p></div>';
-        }
-    } catch (err) { section.innerHTML = '<div class="card"><p>Error loading notifications.</p></div>'; }
+    section.innerHTML = '<div class="card"><p style="text-align:center; color:var(--text-secondary);">No notifications.</p></div>';
 }
 
 // --- PROFILES & AUTH ---
@@ -296,20 +320,14 @@ async function viewUserProfile(username) {
         const user = res.ok ? await res.json() : { username: username };
         container.innerHTML = '<div class="card" style="display:flex; align-items:center; gap:16px;">' +
             '<div class="avatar-wrapper" style="width:64px; height:64px;"><img src="' + (user.pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png') + '"></div>' +
-            '<div>' +
-                '<h2 style="font-size: 20px;">' + escapeHTML(user.username) + '</h2>' +
-                '<p style="color:var(--text-secondary); font-size: 13px;">Scratcher</p>' +
-            '</div>' +
+            '<div><h2 style="font-size: 20px;">' + escapeHTML(user.username) + '</h2><p style="color:var(--text-secondary); font-size: 13px;">Scratcher</p></div>' +
         '</div>';
     } catch (err) { container.innerHTML = '<div class="card"><p>Error loading profile.</p></div>'; }
 }
 
 async function loadAccountProfile() {
     if (!currentUser) {
-        document.getElementById('account-profile-content').innerHTML = '<div class="card" style="text-align: center;">' +
-            '<h3 style="margin-bottom:8px;">Sign in required</h3>' +
-            '<button class="btn" onclick="openAuthModal()">Sign in</button>' +
-        '</div>';
+        document.getElementById('account-profile-content').innerHTML = '<div class="card" style="text-align: center;"><h3 style="margin-bottom:8px;">Sign in required</h3><button class="btn" onclick="openAuthModal()">Sign in</button></div>';
         return;
     }
     viewUserProfile(currentUser.username);
@@ -328,10 +346,7 @@ function renderAuthUI() {
     const container = document.getElementById('auth-container');
     if (!container) return;
     if (currentUser) {
-        container.innerHTML = '<div class="avatar-wrapper" style="width:32px; height:32px; cursor:pointer;" onclick="switchTab(\'account\')">' +
-            '<img src="' + (currentUser.pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png') + '">' +
-        '</div>' +
-        '<button class="btn-outline" style="padding: 6px 16px; font-size: 13px;" onclick="logout()">Sign out</button>';
+        container.innerHTML = '<div class="avatar-wrapper" style="width:32px; height:32px; cursor:pointer;" onclick="switchTab(\'account\')"><img src="' + (currentUser.pfp || 'https://cdn2.scratch.mit.edu/get_image/user/default_90x90.png') + '"></div><button class="btn-outline" style="padding: 6px 16px; font-size: 13px;" onclick="logout()">Sign out</button>';
     } else {
         container.innerHTML = '<button class="btn" style="padding: 8px 16px;" onclick="openAuthModal()">Sign in</button>';
     }
