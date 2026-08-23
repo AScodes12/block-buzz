@@ -142,6 +142,7 @@ async function handleAuthSubmit(e, mode) {
         const res = await fetch('/api/auth/' + mode, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // CRITICAL: Sends session cookie
             body: JSON.stringify({ username, password })
         });
         const data = await res.json();
@@ -173,6 +174,7 @@ async function addPostReply(postId) {
         const res = await fetch('/api/posts/' + postId + '/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // CRITICAL: Sends session cookie
             body: JSON.stringify({ text: input.value })
         });
         if (res.ok) {
@@ -199,6 +201,7 @@ async function addReply(postId, commentId, inputId) {
         const res = await fetch('/api/posts/' + postId + '/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include', // CRITICAL: Sends session cookie
             body: JSON.stringify({ text: input.value, parentId: commentId })
         });
         if (res.ok) {
@@ -276,7 +279,7 @@ async function loadFeed() {
     const feed = document.getElementById('feed');
     if (!feed) return;
     try {
-        const res = await fetch('/api/posts');
+        const res = await fetch('/api/posts', { credentials: 'include' });
         const posts = res.ok ? await res.json() : [];
         if (posts.length === 0) {
             feed.innerHTML = '<div class="card" style="grid-column: 1/-1;"><p style="text-align:center;">No projects found.</p></div>';
@@ -296,7 +299,10 @@ async function loadFeed() {
 
 async function togglePinPost(postId) {
     try {
-        const res = await fetch('/api/posts/' + postId + '/pin', { method: 'POST' });
+        const res = await fetch('/api/posts/' + postId + '/pin', { 
+            method: 'POST',
+            credentials: 'include' 
+        });
         if (res.ok) {
             loadFeed();
         }
@@ -306,7 +312,10 @@ async function togglePinPost(postId) {
 async function deletePost(postId) {
     if (!confirm('Delete this post?')) return;
     try {
-        const res = await fetch('/api/posts/' + postId, { method: 'DELETE' });
+        const res = await fetch('/api/posts/' + postId, { 
+            method: 'DELETE',
+            credentials: 'include' 
+        });
         if (res.ok) {
             const card = document.getElementById('post-' + postId);
             if (card) card.remove();
@@ -316,7 +325,10 @@ async function deletePost(postId) {
 
 async function registerView(postId) {
     try {
-        const res = await fetch('/api/posts/' + postId + '/view', { method: 'POST' });
+        const res = await fetch('/api/posts/' + postId + '/view', { 
+            method: 'POST',
+            credentials: 'include' 
+        });
         if (res.ok) {
             const data = await res.json();
             const countSpan = document.getElementById('view-count-' + postId);
@@ -329,7 +341,10 @@ async function registerView(postId) {
 
 async function toggleLike(postId) {
     try {
-        const res = await fetch('/api/posts/' + postId + '/like', { method: 'POST' });
+        const res = await fetch('/api/posts/' + postId + '/like', { 
+            method: 'POST',
+            credentials: 'include' 
+        });
         if (res.ok) {
             const data = await res.json();
             const countSpan = document.getElementById('like-count-' + postId);
@@ -343,7 +358,7 @@ async function loadCommentsForPost(postId) {
     const listContainer = document.getElementById('comments-list-' + postId);
     if (!listContainer) return;
     try {
-        const res = await fetch('/api/posts/' + postId + '/comments');
+        const res = await fetch('/api/posts/' + postId + '/comments', { credentials: 'include' });
         const comments = res.ok ? await res.json() : [];
         if (comments.length === 0) {
             listContainer.innerHTML = '<p style="color:var(--text-secondary, #666);">No comments yet.</p>';
@@ -375,6 +390,7 @@ async function addComment(postId) {
         const res = await fetch('/api/posts/' + postId + '/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ text: input.value })
         });
         if (res.ok) {
@@ -397,7 +413,7 @@ async function loadDiscussions(category = currentDiscussionCategory) {
     const feed = document.getElementById('discussions-feed');
     if (!feed) return;
     try {
-        const res = await fetch('/api/discussions?category=' + category);
+        const res = await fetch('/api/discussions?category=' + category, { credentials: 'include' });
         const filtered = res.ok ? await res.json() : [];
         if (filtered.length === 0) {
             feed.innerHTML = '<div class="card"><p style="text-align:center;">No discussions found in this category.</p></div>';
@@ -438,18 +454,26 @@ async function loadDiscussions(category = currentDiscussionCategory) {
 
 async function toggleDiscussionUpvote(id) {
     try {
-        const res = await fetch('/api/discussions/' + id + '/upvote', { method: 'POST' });
+        const res = await fetch('/api/discussions/' + id + '/upvote', { 
+            method: 'POST',
+            credentials: 'include' 
+        });
         if (res.ok) {
             const data = await res.json();
             document.getElementById('upvote-count-' + id).textContent = Array.isArray(data.upvotes) ? data.upvotes.length : data.upvotes;
-            document.getElementById('downvote-count-' + id).textContent = Array.isArray(data.downvotes) ? data.downvotes.length : data.downvotes;
+            if (data.downvotes !== undefined) {
+                document.getElementById('downvote-count-' + id).textContent = Array.isArray(data.downvotes) ? data.downvotes.length : data.downvotes;
+            }
         }
     } catch (err) { console.error('Upvote error:', err); }
 }
 
 async function toggleDiscussionDownvote(id) {
     try {
-        const res = await fetch('/api/discussions/' + id + '/downvote', { method: 'POST' });
+        const res = await fetch('/api/discussions/' + id + '/downvote', { 
+            method: 'POST',
+            credentials: 'include' 
+        });
         if (res.ok) {
             const data = await res.json();
             document.getElementById('upvote-count-' + id).textContent = Array.isArray(data.upvotes) ? data.upvotes.length : data.upvotes;
@@ -470,6 +494,7 @@ async function addDiscussionReply(id) {
         const res = await fetch('/api/discussions/' + id + '/comments', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ text: input.value })
         });
         if (res.ok) {
@@ -497,6 +522,7 @@ async function submitDiscussion() {
         const res = await fetch('/api/discussions', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ title, content, category })
         });
         if (res.ok) {
@@ -513,7 +539,7 @@ async function loadContests() {
     const section = document.getElementById('contests-section');
     if (!section) return;
     try {
-        const res = await fetch('/api/contests');
+        const res = await fetch('/api/contests', { credentials: 'include' });
         const contests = res.ok ? await res.json() : [];
         if (contests.length === 0) {
             section.innerHTML = '<div class="card"><p style="text-align:center;">No active contests right now.</p></div>';
@@ -540,7 +566,7 @@ async function loadStudios() {
     const section = document.getElementById('studios-section');
     if (!section) return;
     try {
-        const res = await fetch('/api/studios');
+        const res = await fetch('/api/studios', { credentials: 'include' });
         const studios = res.ok ? await res.json() : [];
         if (studios.length === 0) {
             section.innerHTML = '<div class="card"><p style="text-align:center;">No studios found.</p></div>';
@@ -570,7 +596,7 @@ async function viewUserProfile(username) {
     if (!container) return;
     container.innerHTML = '<div class="card"><p style="text-align:center;">Loading profile...</p></div>';
     try {
-        const res = await fetch('/api/users/' + username);
+        const res = await fetch('/api/users/' + username, { credentials: 'include' });
         const data = res.ok ? await res.json() : null;
         if (!data || !data.user) {
             container.innerHTML = '<div class="card"><p>User not found.</p></div>';
@@ -645,6 +671,7 @@ async function saveBio() {
         const res = await fetch('/api/users/profile', {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
             body: JSON.stringify({ bio })
         });
         if (res.ok) {
@@ -657,7 +684,7 @@ async function saveBio() {
 // --- AUTH & INIT ---
 async function checkAuth() {
     try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
         const data = await res.json();
         currentUser = data.user || null;
     } catch (err) { console.error('Auth check error:', err); }
@@ -671,15 +698,7 @@ function showMsg(element, text, type) {
     setTimeout(() => { element.style.display = 'none'; }, 4000);
 }
 
-function escapeHTML(str) {
-    if (!str) return '';
-    return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-}
-
+// --- INITIALIZATION ---
 document.addEventListener('DOMContentLoaded', async () => {
     await checkAuth();
     navigateTo(window.location.pathname, false);
