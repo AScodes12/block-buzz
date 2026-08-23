@@ -4,7 +4,10 @@
 
 // --- GLOBAL STATE ---
 let currentUser = null;
-let currentDiscussionCategory = 'all';
+let currentDiscussionCategory = 'scratch';
+
+// --- SHARED ICONS ---
+const replyIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/></svg>';
 
 // --- ROUTING ENGINE (HTML5 History API) ---
 function navigateTo(path, pushState = true) {
@@ -155,6 +158,59 @@ async function handleAuthSubmit(e, mode) {
     }
 }
 
+// --- POST REPLY & COMMENT REPLY FEATURES ---
+function togglePostReplyBox(postId) {
+    const box = document.getElementById('post-reply-box-' + postId);
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+async function addPostReply(postId) {
+    const input = document.getElementById('post-reply-input-' + postId);
+    if (!input || !input.value.trim()) return;
+    try {
+        const res = await fetch('/api/posts/' + postId + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input.value })
+        });
+        if (res.ok) {
+            input.value = '';
+            togglePostReplyBox(postId);
+            loadCommentsForPost(postId);
+        } else if (res.status === 401) {
+            openAuthModal('login');
+        }
+    } catch (err) { console.error('Error sending post reply', err); }
+}
+
+function toggleReplyBox(commentKey) {
+    const box = document.getElementById('reply-box-' + commentKey);
+    if (box) {
+        box.style.display = box.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+async function addReply(postId, commentId, inputId) {
+    const input = document.getElementById(inputId);
+    if (!input || !input.value.trim()) return;
+    try {
+        const res = await fetch('/api/posts/' + postId + '/comments', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: input.value, parentId: commentId })
+        });
+        if (res.ok) {
+            input.value = '';
+            toggleReplyBox(postId + '-' + commentId);
+            loadCommentsForPost(postId);
+        } else if (res.status === 401) {
+            openAuthModal('login');
+        }
+    } catch (err) { console.error('Error sending reply', err); }
+}
+
 // --- POSTS & GRID FEED ---
 function renderPostCard(post) {
     const postId = post.id;
@@ -295,7 +351,16 @@ async function loadCommentsForPost(postId) {
         }
         let html = '';
         comments.forEach(c => {
-            html += `<div style="margin-bottom:4px;"><b>${escapeHTML(c.author)}:</b> ${escapeHTML(c.text)}</div>`;
+            const commentKey = `${postId}-${c.id}`;
+            html += `
+                <div style="margin-bottom:6px;" id="comment-${c.id}">
+                    <b>${escapeHTML(c.author)}:</b> ${escapeHTML(c.text)}
+                    <button class="stat-btn" style="font-size:11px; padding:0 4px; margin-left:6px;" onclick="toggleReplyBox('${commentKey}')">Reply</button>
+                    <div id="reply-box-${commentKey}" style="display:none; margin-top:4px; margin-left:12px;" class="comment-input-row">
+                        <input type="text" id="reply-input-${commentKey}" placeholder="Reply to ${escapeHTML(c.author)}..." style="padding: 2px 6px; font-size: 11px;">
+                        <button class="btn" style="padding: 2px 8px; font-size: 11px;" onclick="addReply('${postId}', '${c.id}', 'reply-input-${commentKey}')">Send</button>
+                    </div>
+                </div>`;
         });
         listContainer.innerHTML = html;
     } catch (err) {
@@ -319,28 +384,6 @@ async function addComment(postId) {
     } catch (err) { console.error('Error adding comment'); }
 }
 
-async function addPostReply(postId) {
-    const input = document.getElementById('post-reply-input-' + postId);
-    if (!input || !input.value.trim()) return;
-    try {
-        const res = await fetch('/api/posts/' + postId + '/comments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: input.value })
-        });
-        if (res.ok) {
-            input.value = '';
-            document.getElementById('post-reply-box-' + postId).style.display = 'none';
-            loadCommentsForPost(postId);
-        }
-    } catch (err) { console.error('Error post reply'); }
-}
-
-function togglePostReplyBox(postId) {
-    const box = document.getElementById('post-reply-box-' + postId);
-    if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
-}
-
 // --- DISCUSSIONS ---
 function switchDiscussionCategory(category) {
     currentDiscussionCategory = category;
@@ -350,7 +393,7 @@ function switchDiscussionCategory(category) {
     loadDiscussions(category);
 }
 
-async function loadDiscussions(category = 'all') {
+async function loadDiscussions(category = currentDiscussionCategory) {
     const feed = document.getElementById('discussions-feed');
     if (!feed) return;
     try {
@@ -446,7 +489,7 @@ async function submitDiscussion() {
     if (!titleEl || !contentEl) return;
     const title = titleEl.value.trim();
     const content = contentEl.value.trim();
-    const category = categoryEl ? categoryEl.value : 'all';
+    const category = categoryEl ? categoryEl.value : 'scratch';
 
     if (!title || !content) return showMsg(msg, 'Title and content required.', 'error');
 
