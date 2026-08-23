@@ -155,13 +155,10 @@ function switchTab(tabName) {
 // --- POSTS & FEED ---
 function renderPostCard(post) {
     const postId = post.id;
-    const views = Array.isArray(post.views) ? post.views.length : 0;
-    const likes = Array.isArray(post.likes) ? post.likes.length : 0;
+    const views = Array.isArray(post.views) ? post.views.length : (post.views || 0);
+    const likes = Array.isArray(post.likes) ? post.likes.length : (post.likes || 0);
 
-    // Strictly check if the current user is the exact author of the post
     const isAuthor = currentUser && currentUser.username === post.author;
-    
-    // Styled prominently so it is immediately visible
     const deleteBtnHtml = isAuthor ? '<button class="btn" style="background-color: #d93025; color: white; margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 4px; cursor: pointer;" onclick="deletePost(\'' + postId + '\')">Delete Post</button>' : '';
 
     const eyeIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>';
@@ -310,17 +307,25 @@ async function toggleLike(postId) {
         if (res.ok) {
             const data = await res.json();
             const countSpan = document.getElementById('like-count-' + postId);
-            if (countSpan) countSpan.textContent = data.likes.length;
+            if (countSpan) countSpan.textContent = Array.isArray(data.likes) ? data.likes.length : data.likes;
         } else if (res.status === 401) {
             openAuthModal('login');
         }
     } catch (err) { console.error('Error liking'); }
 }
 
+// Updated View Counter logic
 async function registerView(postId) {
     try {
-        await fetch('/api/posts/' + postId + '/view', { method: 'POST' });
-    } catch (err) { console.error('Error recording view'); }
+        const res = await fetch('/api/posts/' + postId + '/view', { method: 'POST' });
+        if (res.ok) {
+            const data = await res.json();
+            const countSpan = document.getElementById('view-count-' + postId);
+            if (countSpan && data.views !== undefined) {
+                countSpan.textContent = Array.isArray(data.views) ? data.views.length : data.views;
+            }
+        }
+    } catch (err) { console.error('Error recording view:', err); }
 }
 
 async function addComment(postId) {
@@ -362,7 +367,7 @@ async function loadDiscussions(category) {
         let html = '';
         for (let i = 0; i < filtered.length; i++) {
             let item = filtered[i];
-            let upvotes = Array.isArray(item.upvotes) ? item.upvotes.length : 0;
+            let upvotes = Array.isArray(item.upvotes) ? item.upvotes.length : (item.upvotes || 0);
             const thumbUpIcon = '<svg class="icon" viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>';
 
             html += '<div class="card" id="discussion-' + item.id + '">' +
@@ -398,7 +403,7 @@ async function toggleDiscussionUpvote(discussionId) {
         if (res.ok) {
             const data = await res.json();
             const countSpan = document.getElementById('upvote-count-' + discussionId);
-            if (countSpan) countSpan.textContent = data.upvotes.length;
+            if (countSpan) countSpan.textContent = Array.isArray(data.upvotes) ? data.upvotes.length : data.upvotes;
         } else if (res.status === 401) {
             openAuthModal('login');
         }
