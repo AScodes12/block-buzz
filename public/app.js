@@ -631,159 +631,125 @@ function renderAuthUI() {
 function openAuthModal(mode = 'login') {
     const overlay = document.getElementById('auth-modal');
     const body = document.getElementById('auth-modal-body');
+    if (!overlay || !body) return;
+
     overlay.style.display = 'flex';
 
     if (mode === 'login') {
-        body.innerHTML = '<h3 style="margin-bottom: 20px; font-size: 18px;">Sign in to BlockBuzz</h3>' +
-            '<div class="input-group">' +
-                '<input type="text" id="auth-username" placeholder="Scratch Username">' +
-                '<input type="password" id="auth-password" placeholder="Password">' +
-                '<button class="btn" onclick="submitAuthLogin()" style="width: 100%; margin-top: 8px;">Sign In</button>' +
-                '<div class="auth-switch">Need an account? <span onclick="openAuthModal(\'signup\')">Sign up</span></div>' +
-                '<div class="auth-switch" style="margin-top: 4px;"><span onclick="openAuthModal(\'reset\')">Forgot password?</span></div>' +
-            '</div>';
-    } else if (mode === 'signup') {
-        body.innerHTML = '<h3 style="margin-bottom: 20px; font-size: 18px;">Register with Scratch</h3>' +
-            '<div class="input-group">' +
-                '<input type="text" id="auth-username" placeholder="Scratch Username">' +
-                '<input type="password" id="auth-password" placeholder="Create Password">' +
-                '<input type="text" id="auth-referral" placeholder="Referral Code (Optional)">' +
-                '<button class="btn" onclick="submitAuthRegisterRequest()" style="width: 100%; margin-top: 8px;">Next: Verify Profile</button>' +
-                '<div class="auth-switch">Already have an account? <span onclick="openAuthModal(\'login\')">Sign in</span></div>' +
-            '</div>';
-    } else if (mode === 'reset') {
-        body.innerHTML = '<h3 style="margin-bottom: 20px; font-size: 18px;">Reset Password</h3>' +
-            '<div class="input-group">' +
-                '<input type="text" id="auth-username" placeholder="Scratch Username">' +
-                '<button class="btn" onclick="submitAuthResetRequest()" style="width: 100%; margin-top: 8px;">Request Code</button>' +
-                '<div class="auth-switch"><span onclick="openAuthModal(\'login\')">Back to Sign in</span></div>' +
-            '</div>';
+        body.innerHTML = '<h3 style="margin-bottom: 12px; font-size: 18px; color: var(--text-primary);">Sign In</h3>' +
+            '<div id="auth-msg" class="msg-box" style="display:none; margin-bottom: 12px;"></div>' +
+            '<input type="text" id="auth-username" placeholder="Scratch Username" style="width: 100%; padding: 8px 12px; margin-bottom: 10px; box-sizing: border-box;">' +
+            '<input type="password" id="auth-password" placeholder="Password" style="width: 100%; padding: 8px 12px; margin-bottom: 12px; box-sizing: border-box;">' +
+            '<button class="btn" style="width: 100%; padding: 8px;" onclick="handleLogin()">Sign In</button>' +
+            '<p style="margin-top: 12px; font-size: 13px; text-align: center; color: var(--text-secondary);">' +
+                'Don\'t have an account? <a href="#" onclick="openAuthModal(\'signup\'); return false;" style="color: var(--accent-color, #4d97ff);">Sign Up</a>' +
+            '</p>';
+    } else {
+        body.innerHTML = '<h3 style="margin-bottom: 12px; font-size: 18px; color: var(--text-primary);">Create Account</h3>' +
+            '<div id="auth-msg" class="msg-box" style="display:none; margin-bottom: 12px;"></div>' +
+            '<input type="text" id="auth-username" placeholder="Scratch Username" style="width: 100%; padding: 8px 12px; margin-bottom: 10px; box-sizing: border-box;">' +
+            '<input type="password" id="auth-password" placeholder="Password" style="width: 100%; padding: 8px 12px; margin-bottom: 10px; box-sizing: border-box;">' +
+            '<input type="text" id="auth-referral" placeholder="Referral Code (Optional)" style="width: 100%; padding: 8px 12px; margin-bottom: 12px; box-sizing: border-box;">' +
+            '<button class="btn" style="width: 100%; padding: 8px;" onclick="handleSignup()">Sign Up</button>' +
+            '<p style="margin-top: 12px; font-size: 13px; text-align: center; color: var(--text-secondary);">' +
+                'Already have an account? <a href="#" onclick="openAuthModal(\'login\'); return false;" style="color: var(--accent-color, #4d97ff);">Sign In</a>' +
+            '</p>';
     }
 }
 
-function closeAuthModal() { document.getElementById('auth-modal').style.display = 'none'; }
+function closeAuthModal() {
+    const overlay = document.getElementById('auth-modal');
+    if (overlay) overlay.style.display = 'none';
+}
 
-async function submitAuthLogin() {
+async function handleLogin() {
     const username = document.getElementById('auth-username').value;
     const password = document.getElementById('auth-password').value;
-    const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-    });
-    const data = await res.json();
-    if (res.ok) {
-        currentUser = data.user;
-        renderAuthUI();
-        closeAuthModal();
-        loadFeed();
-    } else {
-        alert(data.error || 'Login failed.');
+    const msg = document.getElementById('auth-msg');
+
+    if (!username || !password) return showMsg(msg, 'Username and password required.', 'error');
+
+    try {
+        const res = await fetch('/api/auth/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            currentUser = data.user;
+            closeAuthModal();
+            renderAuthUI();
+            loadFeed();
+        } else {
+            showMsg(msg, data.error || 'Login failed.', 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Network error during login.', 'error');
     }
 }
 
-async function submitAuthRegisterRequest() {
+async function handleSignup() {
     const username = document.getElementById('auth-username').value;
     const password = document.getElementById('auth-password').value;
     const referralCode = document.getElementById('auth-referral').value;
-    const res = await fetch('/api/auth/register-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password, referralCode })
-    });
-    const data = await res.json();
-    if (res.ok) {
-        const body = document.getElementById('auth-modal-body');
-        body.innerHTML = '<h3 style="margin-bottom: 12px; font-size: 18px;">Verify Scratch Profile</h3>' +
-            '<p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">Add this code to your Scratch bio or What I\'m Working On section:</p>' +
-            '<div style="background:#f1f3f4; padding:12px; border-radius:8px; font-weight:bold; text-align:center; font-size:16px; margin-bottom:12px;">' + data.verificationCode + '</div>' +
-            '<a href="' + data.profileUrl + '" target="_blank" class="btn-outline" style="display:block; text-align:center; margin-bottom:12px;">Open Scratch Profile</a>' +
-            '<button class="btn" onclick="submitAuthVerify(\'' + username + '\')" style="width:100%;">I\'ve Added It, Verify Me!</button>';
-    } else {
-        alert(data.error || 'Registration request failed.');
-    }
-}
+    const msg = document.getElementById('auth-msg');
 
-async function submitAuthVerify(username) {
-    const res = await fetch('/api/auth/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
-    });
-    const data = await res.json();
-    if (res.ok) {
-        currentUser = data.user;
-        renderAuthUI();
-        closeAuthModal();
-        loadFeed();
-        alert('Verification successful! Welcome to BlockBuzz.');
-    } else {
-        alert(data.error || 'Verification code not found on profile yet.');
-    }
-}
+    if (!username || !password) return showMsg(msg, 'Username and password required.', 'error');
 
-async function submitAuthResetRequest() {
-    const username = document.getElementById('auth-username').value;
-    const res = await fetch('/api/auth/reset-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username })
-    });
-    const data = await res.json();
-    if (res.ok) {
-        const body = document.getElementById('auth-modal-body');
-        body.innerHTML = '<h3 style="margin-bottom: 12px; font-size: 18px;">Reset Password</h3>' +
-            '<p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">Add reset code <b>' + data.verificationCode + '</b> to your Scratch bio, then enter your new password below:</p>' +
-            '<div class="input-group">' +
-                '<input type="password" id="reset-new-password" placeholder="New Password">' +
-                '<button class="btn" onclick="submitAuthConfirmReset(\'' + username + '\')" style="width: 100%; margin-top: 8px;">Update Password</button>' +
-            '</div>';
-    } else {
-        alert(data.error || 'Reset request failed.');
-    }
-}
-
-async function submitAuthConfirmReset(username) {
-    const newPassword = document.getElementById('reset-new-password').value;
-    const res = await fetch('/api/auth/reset-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, newPassword })
-    });
-    const data = await res.json();
-    if (res.ok) {
-        alert('Password updated successfully!');
-        openAuthModal('login');
-    } else {
-        alert(data.error || 'Password reset failed.');
+    try {
+        const res = await fetch('/api/auth/signup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, referralCode })
+        });
+        const data = await res.json();
+        if (res.ok) {
+            currentUser = data.user;
+            closeAuthModal();
+            renderAuthUI();
+            loadFeed();
+        } else {
+            showMsg(msg, data.error || 'Signup failed.', 'error');
+        }
+    } catch (err) {
+        showMsg(msg, 'Network error during signup.', 'error');
     }
 }
 
 async function logout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
-    currentUser = null;
-    renderAuthUI();
+    try {
+        await fetch('/api/auth/logout', { method: 'POST' });
+        currentUser = null;
+        renderAuthUI();
+        loadFeed();
+    } catch (err) {
+        console.error('Error logging out');
+    }
+}
+
+// --- UTILITY FUNCTIONS ---
+function showMsg(element, text, type) {
+    if (!element) return;
+    element.textContent = text;
+    element.className = 'msg-box ' + type;
+    element.style.display = 'block';
+    setTimeout(() => { element.style.display = 'none'; }, 4000);
+}
+
+function escapeHTML(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// --- INITIALIZATION ---
+document.addEventListener('DOMContentLoaded', () => {
+    loadTheme();
+    checkAuth();
     loadFeed();
-    switchTab('home');
-}
-
-// --- UTILS ---
-function showMsg(element, text, type) { 
-    if (!element) return; 
-    element.textContent = text; 
-    element.className = 'inline-msg ' + type; 
-    element.style.display = 'block'; 
-    setTimeout(function() { element.style.display = 'none'; }, 4000); 
-}
-
-function escapeHTML(str) { 
-    return str ? String(str).replace(/[&<>'"]/g, function(tag) { 
-        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag; 
-    }) : ''; 
-}
-
-document.addEventListener('DOMContentLoaded', function() { 
-    loadTheme(); 
-    checkAuth(); 
-    loadFeed(); 
 });
